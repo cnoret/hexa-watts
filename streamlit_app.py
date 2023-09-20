@@ -1,22 +1,7 @@
 # Packages
-import pandas as pd
 import streamlit as st
 from streamlit_option_menu import option_menu
 from PIL import Image
-
-
-def introduction():
-    image_top = Image.open("images/nucleaire.jpeg")
-    st.image(image_top, caption = "Centrale nucléaire de Saint Laurent des Eaux \
-             - Photo : Sipa / Patrick SICCOLI", width = 500)
-    st.title("Projet ")
-    st.subheader("Analyse et prédiction de la consommation électrique en France")
-
-    st.subheader("Contexte")
-    st.write("TEXT")
-
-    st.subheader("Objectifs de l'analyse")
-    st.write("TEXT")
 
 def exploration():
     st.title("Exploration des données")
@@ -37,7 +22,10 @@ def ressources():
     st.title("Ressources")
 
 
-# Page title and favicon
+# Importing content
+from pages.introduction import introduction
+
+# Page title & favicon
 st.set_page_config(page_title = "Consommation d'électricité en France",
                    page_icon = "images/favicon.png")
 
@@ -56,16 +44,21 @@ with st.sidebar:
                    "Conclusion",
                    "Ressources"],
         default_index = 0)
+    
+    ## Team
+
     st.header("Equipe du projet :")
     st.markdown('- Christophe NORET&nbsp;&nbsp;[<img src="https://content.linkedin.com/content/dam/me/business/en-us/amp/brand-site/v2/bg/LI-Bug.svg.original.svg" width=25>](http://www.linkedin.com/in/cnoret) \
-                [<img src="https://content.linkedin.com/content/dam/me/business/en-us/amp/brand-site/v2/bg/LI-Bug.svg.original.svg" width=25>](http://www.linkedin.com/in/cnoret)', unsafe_allow_html=True)
+                [<img src="https://content.linkedin.com/content/dam/me/business/en-us/amp/brand-site/v2/bg/LI-Bug.svg.original.svg" width=25>](http://www.linkedin.com/in/cnoret)', unsafe_allow_html = True)
     st.markdown('- Siham HOUCHI&nbsp;&nbsp;[<img src="https://content.linkedin.com/content/dam/me/business/en-us/amp/brand-site/v2/bg/LI-Bug.svg.original.svg" width=25>](http://www.linkedin.com/in/cnoret) \
-                [<img src="https://content.linkedin.com/content/dam/me/business/en-us/amp/brand-site/v2/bg/LI-Bug.svg.original.svg" width=25>](http://www.linkedin.com/in/cnoret)', unsafe_allow_html=True)
+                [<img src="https://content.linkedin.com/content/dam/me/business/en-us/amp/brand-site/v2/bg/LI-Bug.svg.original.svg" width=25>](http://www.linkedin.com/in/cnoret)', unsafe_allow_html = True)
     st.markdown('- Cyril LECAILLE&nbsp;&nbsp;[<img src="https://content.linkedin.com/content/dam/me/business/en-us/amp/brand-site/v2/bg/LI-Bug.svg.original.svg" width=25>](http://www.linkedin.com/in/cnoret) \
-                [<img src="https://content.linkedin.com/content/dam/me/business/en-us/amp/brand-site/v2/bg/LI-Bug.svg.original.svg" width=25>](http://www.linkedin.com/in/cnoret)', unsafe_allow_html=True)
+                [<img src="https://content.linkedin.com/content/dam/me/business/en-us/amp/brand-site/v2/bg/LI-Bug.svg.original.svg" width=25>](http://www.linkedin.com/in/cnoret)', unsafe_allow_html = True)
     st.markdown('- Simon BERRY&nbsp;&nbsp;[<img src="https://content.linkedin.com/content/dam/me/business/en-us/amp/brand-site/v2/bg/LI-Bug.svg.original.svg" width=25>](http://www.linkedin.com/in/cnoret) \
-                [<img src="https://content.linkedin.com/content/dam/me/business/en-us/amp/brand-site/v2/bg/LI-Bug.svg.original.svg" width=25>](http://www.linkedin.com/in/cnoret)', unsafe_allow_html=True)
+                [<img src="https://content.linkedin.com/content/dam/me/business/en-us/amp/brand-site/v2/bg/LI-Bug.svg.original.svg" width=25>](http://www.linkedin.com/in/cnoret)', unsafe_allow_html = True)
 
+
+## Main Menu
 
 if choice == "Introduction":
     introduction()

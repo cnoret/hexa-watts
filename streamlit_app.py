@@ -12,14 +12,14 @@ from content.conclusion import conclusion
 from content.ressources import ressources
 
 ## Page title & favicon
-st.set_page_config(page_title = "Consommation d'électricité en France",
+st.set_page_config(page_title = "Énergie France",
                    page_icon = "images/favicon.png")
 
 ## Sidebar menu
 with st.sidebar:
     image_side = Image.open("images/triangle.png")
     st.image(image_side)
-    st.header("Energie_France")
+    st.header("L'énergie en France")
     choice = option_menu(
         menu_title = "Sommaire",
         options = ["Introduction",

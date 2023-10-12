@@ -45,6 +45,3 @@ def exploration():
 
     except Exception as e:
         st.error(f"Une erreur s'est produite lors de l'importation des données : {str(e)}")
-
-if __name__ == '__main__':
-    exploration()

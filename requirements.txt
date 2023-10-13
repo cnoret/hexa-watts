@@ -4,3 +4,8 @@ pandas
 scikit_learn
 streamlit
 streamlit_option_menu
+geopandas
+ipywidgets
+pyarrow
+plotly
+colorcet

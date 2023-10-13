@@ -1,24 +1,6 @@
 import pandas as pd
-import time
-from datetime import datetime as dt
-import numpy as np
-
-# Visualisation
-import matplotlib.pyplot as plt
-from matplotlib.colors import Normalize
-import seaborn as sns
-import ipywidgets as widgets
-from ipywidgets import interact
-from ipywidgets.widgets.widget_selection import DescriptionWidget
 import pyarrow.parquet as pq
-import pyarrow as pa
-import plotly.graph_objects as go
-import plotly.express as px
-import geopandas as gpd
-import colorcet as cc
-# %matplotlib inline Commenté car non supporté par StreamLit
-
-# Importation du dataset principal
+import numpy as np
 
 table = pq.read_table('datasets/df.parquet')
 df = table.to_pandas()
@@ -94,7 +76,6 @@ df['Cotier'] = df['Région'].apply(lambda region: 1 if region in cotes else 0)
 # Ajout d'une colonne "Nordsud" pour déterminer la position d'une région
 def nordsud(reg):
   "Fonction retournant une chaîne 'Nord' / 'Sud' suivant la région passée en argument"
-
   nord = ['Bretagne', 'Normandie', 'Pays de la Loire', 'Centre-Val de Loire',
           'Île-de-France', 'Hauts-de-France', 'Grand Est', 'Bourgogne-Franche-Comté']
   sud = ['Nouvelle-Aquitaine', 'Occitanie', 'Auvergne-Rhône-Alpes',

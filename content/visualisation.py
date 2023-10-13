@@ -16,7 +16,6 @@ colors = {
     'Bioénergies (MW)': 'green'
 }
 
-
 def visualisation():
     st.title("Analyses et visualisations")
 

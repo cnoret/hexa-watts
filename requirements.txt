@@ -1,4 +1,6 @@
 matplotlib
+matplotlib.pyplot
+matplotlib.colors
 numpy
 pandas
 scikit_learn
@@ -8,5 +10,10 @@ geopandas
 ipywidgets
 pyarrow
 plotly
+plotly.graph_objects
+plotly.express
 colorcet
 seaborn
+datetime
+time
+

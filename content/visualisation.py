@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 from content.eco2mix_code import df
 import plotly.graph_objects as go
+import plotly.express as px
+
 
 
 ## Color scheme qu'on va utiliser pour les grafs
@@ -70,6 +72,22 @@ def visualisation():
         
         return fig
     
+    @st.cache_data
+    def create_pf2_chart(df):
+        # Création d'un DataFrame regroupant la production verte/année
+        green_yearly = df.groupby(['Année'])[['Eolien (MW)', 'Solaire (MW)', 'Hydraulique (MW)', 'Bioénergies (MW)']].sum()
+        
+        # Reset the index to make 'Année' a regular column
+        green_yearly = green_yearly.reset_index()
+
+        fig = px.bar(green_yearly, x='Année', y=green_yearly.columns[1:],  # Exclude 'Année' from the y-values
+            title="Évolution de la production d'énergie renouvelable par année",
+            labels={'Année': 'Année', 'value': 'Production (MW)'},
+            height=400, color_discrete_map=colors)
+
+        fig.update_layout(barmode='stack')
+
+        return fig
    
     st.title('1. Production de l\'énergie')
 
@@ -78,3 +96,7 @@ def visualisation():
     st.plotly_chart(pf1_chart)
     st.write("Dépendance au nucléaire : Le graphique révèle que la France dépend largement de l'énergie nucléaire pour sa production d'électricité. Cette source d'énergie représente une part substantielle de la production totale, ce qui indique son importance dans le mix énergétique du pays. La France a historiquement investi massivement dans l'énergie nucléaire, ce qui lui a permis de disposer d'une source d'énergie fiable et à faible émission de carbone. Nous pourrons comparer cette stratégie au reste de l'Europe plus tard dans ce rapport.")
 
+    # PF2
+    pf2_chart = create_pf2_chart(production)
+    st.plotly_chart(pf2_chart)
+    st.write("Une tendance encourageante est l'augmentation de la part de l'énergie solaire et éolienne dans la production d'électricité au cours des dernières années. Cette croissance suggère que la France diversifie son mix énergétique en intégrant davantage d'énergies renouvelables. Les investissements dans le solaire et l'éolien reflètent une préoccupation croissante pour la réduction des émissions de gaz à effet de serre et la transition vers une production d'électricité plus propre et durable.")

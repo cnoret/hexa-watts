@@ -59,4 +59,3 @@ elif choice == "Conclusion":
 
 else:
     ressources()
-    

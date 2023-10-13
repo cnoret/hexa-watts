@@ -1,8 +1,9 @@
 import streamlit as st
 import pyarrow.parquet as pq
-import pandas as pd 
+import pandas as pd
 
 def exploration():
+    "Page d'exploration"
     st.title("Exploration des données")
 
     # URL image en haut de page

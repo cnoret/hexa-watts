@@ -16,10 +16,12 @@ colors = {
     'Bioénergies (MW)': 'green'
 }
 
+
 def visualisation():
     st.title("Analyses et visualisations")
 
     # Création du DataFrame 'consommation'
+    @st.cache
     def create_consommation_dataframe(df):
         to_keep = ['Région', 'Nature', 'Date', 'Heure', 'Date - Heure','Jour', 'Mois', 'Jour_mois', 'Année', 'Consommation (MW)']
         consommation = df[to_keep]
@@ -27,12 +29,14 @@ def visualisation():
     consommation = create_consommation_dataframe(df)
 
     # Création du DataFrame 'production'
+    @st.cache
     def create_production_dataframe(df):
         to_loose = ['Consommation (MW)']
         production = df.drop(to_loose, axis=1)
         return production
     production = create_production_dataframe(df)
     
+    @st.cache
     def create_pf1_chart(df):
     # Notre première Data Viz PF1
         # Regroupement de la production par année de toutes les énergies
@@ -68,6 +72,7 @@ def visualisation():
         
         return fig
     
+    @st.cache
     def create_pf2_chart(df):
         # Création d'un DataFrame regroupant la production verte/année
         green_yearly = df.groupby(['Année'])[['Eolien (MW)', 'Solaire (MW)', 'Hydraulique (MW)', 'Bioénergies (MW)']].sum()

@@ -17,7 +17,24 @@ colors = {
     'Bioénergies (MW)': 'green'
 }
 
+# Pour les données Europe aussi
+colors_euro = {
+    'Bioénergie': '#FF0000',  # Rouge
+    'Déchets municipaux renouvelables': '#00FF00',  # Vert
+    'Éolien': '#ADD8E6',  # Bleu clair
+    'Solaire Photovoltaique': '#FFA500',  # Orange
+    'Solaire Thermique': '#FFFF00',  # Jaune
+    'Hydraulique': '#00008B',  # Bleu foncé
+    'Biogaz': '#808080',  # Gris
+    'Biocarburants': '#800080',  # Violet
+    'Pompe à chaleur': '#FF0000',  # Rouge
+    'Océan': '#0000FF',  # Bleu
+    'Geothermique': '#D076FF'  # Violet
+}
+
 green = df.groupby(['Région'])[['Eolien (MW)', 'Solaire (MW)', 'Hydraulique (MW)', 'Bioénergies (MW)']].sum().reset_index()
+
+EUROPE_DATA = pd.read_csv('datasets/EUROPE_DATA.csv', sep = ',')
 
 def visualisation():
     st.title("Analyses et visualisations")
@@ -111,6 +128,36 @@ def visualisation():
                     title=f'Répartition de la production d\'énergie {type_energie.lower()} par région')
         return fig
 
+        # Création du DataFrame 'EUROPE_PROD'
+    @st.cache_data
+    def create_prod_europe(df):
+        EUROPE_PROD = EUROPE_DATA[EUROPE_DATA['Type'] == 'Production']
+        return EUROPE_PROD
+    EUROPE_PROD = create_prod_europe(EUROPE_DATA)
+
+        # Création du DatFrame 'EUROPE_CONS'
+    @st.cache_data
+    def create_cons_europe(df):
+        EUROPE_CONS = EUROPE_DATA[EUROPE_DATA['Type'] == 'Consommation']
+        return EUROPE_CONS
+    EUROPE_CONS = create_cons_europe(EUROPE_DATA)
+
+    def create_pe1a_chart(df):
+        EUROPE_PROD_TYPE = EUROPE_PROD.groupby(['Pays', 'Class'])['Valeur (MW)'].sum().reset_index()
+        fig = px.bar(
+        EUROPE_PROD_TYPE,
+        x = 'Pays',
+        y = 'Valeur (MW)',
+        color = 'Class',
+        labels = {'Valeur (MW)': 'Production totale', 'Pays': 'Pays'},
+        title = 'Production totale par pays en énergie renouvelable'
+         )
+
+        for classification, color in colors_euro.items():
+
+            fig.update_traces(marker_color=color, selector=dict(name=classification))
+        
+        return fig
 
     ''' APRES CETTE LIMITE, ON AJOUTE TOUS LES TITRES, BODY ET APPELS DES FONCTIONS.'''
    
@@ -146,4 +193,40 @@ def visualisation():
     st.image("images/PF5.png")
 
     st.info("Selon les données présentées dans le graphique ci-dessus, il est visible que près de 80% de l'énergie générée par l'éolien provient de parcs offshores.")
+
+    #PF6
+    st.write("Production d'énergie éolienne Offshore vs. Terrestre")
+
+    st.image("images/PF6.png")
+
+    st.info("Sur ce graphique, nous observons les diverses régions qui génèrent de l'énergie à partir de leurs centrales nucléaires.​Il est notable que seules sept régions sont impliquées dans la production de cette forme d'énergie, avec l'Auvergne, le Grand Est et la région Centre se distinguant comme les principaux acteurs.​ Toutefois, en raison de la prédominance de l'énergie nucléaire dans la stratégie énergétique de la France, qui représente environ 70 % de sa production totale, toutes les régions du pays sont dépendantes de cette source d'énergie et en importent.​ Comme nous allons pouvoir le voir dans la partie 'Distribution' les balances d'exportation d'énergie des régions produisant du nucléaire sont toujours excédentaires.")
+
+    #PLACEHOLDER TCO TCH
+
+
+
+    st.header('Donnée de la production des Pays Européens')
+
+    pe1a_chart = create_pe1a_chart(EUROPE_PROD)
+    st.plotly_chart(pe1a_chart)
+
+    st.title("Distribution de l'énergie")
+
+    #PLACEHOLDER DISTRIBUTION
+
+    st.title("Consommation de l'énergie")
+
+    # CF2
+
+    # CF3
+
+    # CF4
+
+    # CF5 &/ou 6
+
+    # CF7
+
+    # CF8 / 9 / 11
+
+    st.title('Comparaison de la production et de la consommation de l\'énergie')
 

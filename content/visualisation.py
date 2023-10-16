@@ -208,8 +208,6 @@ def visualisation():
     tco_tch_table = pq.read_table('datasets/tco_tch.parquet')
     tco_tch = tco_tch_table.to_pandas()
 
-    st.dataframe(tco_tch.head(5))
-
     # Création d'un Dataframe groupé pour analyse des Taux de charge solaire
     tco_tch_grouped_solaire = tco_tch.groupby(['Région', 'Mois'])['TCH Solaire (%)'].mean().reset_index()
     tco_tch_grouped_solaire['Mois'] = pd.Categorical(tco_tch_grouped_solaire['Mois'],
@@ -293,6 +291,72 @@ def visualisation():
               color = 'Année', hover_data = ['Année'])
         fig.update_layout(title='Consommation dans une journée type, par année')
         return fig
+
+    def create_pcf1_chart(df):
+        # Création d'un dataset qui reprends les deux données cibles pour chaque région
+        consprod = df.groupby(['Région'])[['Consommation (MW)', 'Production (MW)']].sum().reset_index()
+
+        # Création d'une visualisation Plotly scatter pour comparer les régions entre elles
+        fig = px.scatter(consprod,
+                        x = 'Production (MW)', y = 'Consommation (MW)',
+                        color = 'Région',
+                        title = 'Production VS Consommation par région',
+                        labels = {'Production (MW)': 'Production', 'Consommation (MW)': 'Consommation'},
+                        hover_data = ['Région'],
+                        size='Production (MW)',
+                        size_max=30)
+
+        # Personnalisation du graphique
+        fig.update_layout(
+            xaxis_title = 'Production (MW)',
+            yaxis_title = 'Consommation (MW)',
+            legend_title = 'Régions',
+            xaxis = dict(gridcolor = 'lightgray'),
+            yaxis = dict(gridcolor = 'lightgray'),
+        )
+
+        return fig
+    
+    def create_ce3_chart(df):
+
+        EUROPE_CONS_TYPE = EUROPE_CONS.groupby(['Pays', 'Class'])['Valeur (MW)'].sum().reset_index()
+
+        fig = px.bar(
+            EUROPE_CONS_TYPE,
+            x = 'Pays',
+            y = 'Valeur (MW)',
+            color = 'Class',
+            labels = {'Valeur (MW)': 'Consommation totale', 'Pays': 'Pays'},
+            title = 'Consommation totale par pays d\'énergies renouvelables'
+        )
+
+        for classification, color in colors_euro.items():
+            fig.update_traces(marker_color=color, selector=dict(name=classification))
+
+        return fig 
+    
+    def create_ce4_chart(df):
+        ## Graphique CE4
+        ## Total consommation annuelle  d'énergie renouvelable en Europe par type d'énergie
+
+        # Grouper les données par "Classification" et "Année" et calculer la somme de la consommation
+        euro_yearly = EUROPE_CONS.groupby(["Class", "Année"])["Valeur (MW)"].sum().unstack()
+
+        euro_yearly = euro_yearly.transpose()
+
+        # Création plotly
+        fig = px.bar(euro_yearly, x = euro_yearly.index, y = euro_yearly.columns,
+                    title = "Totaux Européens en consommation d'énergies renouvelables",
+                    labels = {"x": "Année", "y": "Valeur (MW)"})
+        fig.update_layout(barmode = 'stack', xaxis_title = "Année",
+                        yaxis_title = "Valeurs", legend_title = "Classification")
+
+        for classification, color in colors_euro.items():
+            fig.update_traces(marker_color = color, selector = dict(name = classification))
+
+        return fig
+
+
 
     ''' APRES CETTE LIMITE, ON AJOUTE TOUS LES TITRES, BODY ET APPELS DES FONCTIONS.'''
    
@@ -397,7 +461,75 @@ def visualisation():
     # CF5 &/ou 6
 
     # CF7
+    
+    st.header("Focus sur la population, ajout des données de l'INSEE.")
+    st.info('Nous avons créé un ratio "Consommation Per Capita" pour comparer les régions entres elles. Consommation Totale / Nombre d\'habitants', icon = "🏘️")
+    st.image("images/CF7.png")
+    st.write("Nous observons que les régions du sud ont historiquement toujours eu un consommation Per Capita plus élevée que celles du Nord, mais depuis 2021 cette tendence s'est inversée.")
 
     # CF8 / 9 / 11
 
     st.title('Comparaison de la production et de la consommation de l\'énergie')
+
+    pcf1_chart = create_pcf1_chart(df)
+    st.plotly_chart(pcf1_chart)
+    st.write("Ce graphique Scatterplot Plotly compare la production totale d'énergie ('Production (MW)') avec la consommation d'énergie ('Consommation (MW)') dans différentes régions. Il révèle que la région Auvergne-Rhône-Alpes est la principale productrice et consommatrice d'énergie. Le Grand Est est un bon producteur avec une consommation relativement plus faible. Le Centre-Val de Loire semble exporter de l'énergie, tandis que les régions Pays de la Loire, Bretagne et Bourgogne gèrent efficacement leur consommation. Enfin, l'Île-de-France se distingue par sa forte consommation et une contribution minimale à la production. Ce graphique met en lumière les disparités régionales en matière d'énergie.")
+
+    st.header("La sobriété énergétique")
+    st.info("Le secteur de l'électricité en France implique plusieurs acteurs clés, notamment RTE pour le transport, Enedis pour la distribution, et EDF pour la production. Dans les données d'Enedis Open Data pour 2022 et 2023, trois catégories de consommateurs sont distinguées : résidentiels, professionnels, et entreprises, avec des économies d'énergie lors de températures plus élevées l'hiver.")
+    st.image("images/PCF2.png")
+    st.info("La différence entre les résidentiels et les entreprises/professionnels, peut s'expliquer par la nature de leur comportement en terme de dépenses énergétiques: En effet, les résidentiels ont des habitudes plus réactive (Je baisse, j'augmente) alors que les entreprises et les professionnels sont plutôt proactifs, et ne touchent bien souvent pas au thermostat pour rester stable.​")
+
+    st.title("Consommation des énergies renouvelables en Europe")
+
+    st.image("images/CE1.png")
+
+    st.image("images/CE2.png")
+    st.write("La consommation d'énergies renouvelables en Europe connaît une croissance significative, stimulée par des politiques environnementales strictes, des objectifs de réduction des émissions et des incitations financières. Les biocarburants gagnent en popularité pour diversifier les transports, tandis que la bioénergie prospère grâce aux ressources forestières et agricoles abondantes. L'énergie hydraulique et éolienne est privilégiée dans des régions adaptées, tandis que le biogaz et les déchets municipaux renouvelables sont encouragés pour une gestion durable des déchets. Les pompes à chaleur, le solaire, et la géothermie sont préférés en fonction des ressources locales, tandis que l'énergie océanique est encore en développement.")
+
+    ce3_chart = create_ce3_chart(EUROPE_CONS)
+    st.plotly_chart(ce3_chart)
+    st.info("PLACEHOLDER")
+
+    ce4_chart = create_ce4_chart(EUROPE_CONS)
+    st.plotly_chart(ce4_chart)
+    st.info("PLACEHOLDER")
+
+    ## Graphique CE5
+    ## Consommation d'énergie renouvelable par catégorie d'énergie (Exemple Allemagne)
+
+    # Création d'un sous-ensemble de données pour les années de 2013 à 2021
+    years_to_include = list(range(2013, 2022))
+    df_subset = EUROPE_CONS[EUROPE_CONS['Année'].isin(years_to_include)]
+
+    # Regroupement des données par "Pays" et "Classification" et calcul de la somme de la consommation
+    euro_type = df_subset.groupby(['Pays', 'Class'])['Valeur (MW)'].sum().reset_index()
+
+    # Convertion de la colonne "Valeurs" en type de données décimales (float)
+    euro_type['Valeur (MW)'] = euro_type['Valeur (MW)'].astype(float)
+
+    # Calcul de la consommation totale par pays
+    total_consommation_by_country = euro_type.groupby('Pays')['Valeur (MW)'].sum()
+
+    # Création d'un dictionnaire de données pour le graphique à secteurs de chaque pays
+    data_for_pie_charts = {}
+    for country, group in euro_type.groupby('Pays'):
+        # Calcul de la consommation par type d'énergie pour ce pays
+        group['Pourcentage'] = (group['Valeur (MW)'] / total_consommation_by_country[country]) * 100
+        data_for_pie_charts[country] = group.set_index('Class')['Pourcentage']
+
+    countries = euro_type['Pays'].unique()
+
+    # Widget
+    st.info("Selectionnez un pays", icon = "🇪🇺")
+    pays = st.selectbox(countries)
+    donnees = data_for_pie_charts[pays]
+
+    ce5 = go.Figure(data=[go.Pie(labels=donnees.index, values=donnees.values, textinfo='percent+label')])
+
+    ce5.update_layout(
+            title=f"Pourcentage de la consommation d'énergie renouvelable en {pays} (2013-2021)",
+            legend_title="Catégorie",
+    )
+    st.plotly_chart(ce5)
+    

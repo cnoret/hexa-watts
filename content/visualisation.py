@@ -521,8 +521,7 @@ def visualisation():
     countries = euro_type['Pays'].unique()
 
     # Widget
-    st.info("Selectionnez un pays", icon = "🇪🇺")
-    pays = st.selectbox(countries)
+    pays = st.selectbox("Sélectionnez un pays", countries)
     donnees = data_for_pie_charts[pays]
 
     ce5 = go.Figure(data=[go.Pie(labels=donnees.index, values=donnees.values, textinfo='percent+label')])

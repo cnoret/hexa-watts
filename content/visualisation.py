@@ -495,9 +495,6 @@ def visualisation():
     st.plotly_chart(ce4_chart)
     st.info("PLACEHOLDER")
 
-    ## Graphique CE5
-    ## Consommation d'énergie renouvelable par catégorie d'énergie (Exemple Allemagne)
-
     # Création d'un sous-ensemble de données pour les années de 2013 à 2021
     years_to_include = list(range(2013, 2022))
     df_subset = EUROPE_CONS[EUROPE_CONS['Année'].isin(years_to_include)]
@@ -520,15 +517,23 @@ def visualisation():
 
     countries = euro_type['Pays'].unique()
 
-    # Widget
     pays = st.selectbox("Sélectionnez un pays", countries)
     donnees = data_for_pie_charts[pays]
 
     ce5 = go.Figure(data=[go.Pie(labels=donnees.index, values=donnees.values, textinfo='percent+label')])
 
     ce5.update_layout(
-            title=f"Pourcentage de la consommation d'énergie renouvelable en {pays} (2013-2021)",
-            legend_title="Catégorie",
-    )
-    st.plotly_chart(ce5)
+        title=f"Pourcentage de la consommation d'énergie renouvelable en {pays} (2013-2021)",
+        legend_title="Catégorie",
+        )
     
+    st.plotly_chart(ce5)
+
+        
+    
+    
+  
+  
+
+
+

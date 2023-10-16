@@ -1,10 +1,11 @@
 import streamlit as st
 import pandas as pd
-from content.eco2mix_code import df
 import plotly.graph_objects as go
 import plotly.express as px
 import matplotlib.pyplot as plt
-
+from sklearn.preprocessing import StandardScaler
+from datetime import datetime as dt
+import pyarrow.parquet as pq
 
 
 ## Color scheme qu'on va utiliser pour les grafs
@@ -32,11 +33,15 @@ colors_euro = {
     'Geothermique': '#D076FF'  # Violet
 }
 
-green = df.groupby(['Région'])[['Eolien (MW)', 'Solaire (MW)', 'Hydraulique (MW)', 'Bioénergies (MW)']].sum().reset_index()
-
 EUROPE_DATA = pd.read_csv('datasets/EUROPE_DATA.csv', sep = ',')
 
 def visualisation():
+
+    table = pq.read_table('datasets/df_modified.parquet')
+    df = table.to_pandas()
+
+    green = df.groupby(['Région'])[['Eolien (MW)', 'Solaire (MW)', 'Hydraulique (MW)', 'Bioénergies (MW)']].sum().reset_index()
+
     st.title("Analyses et visualisations")
 
     # Création du DataFrame 'consommation'
@@ -158,9 +163,150 @@ def visualisation():
             fig.update_traces(marker_color=color, selector=dict(name=classification))
         
         return fig
+    
+    def create_pe2a_chart(df):
+        euro_yearly = EUROPE_PROD.groupby(["Class", "Année"])["Valeur (MW)"].sum().unstack().transpose()
+        fig = px.bar(euro_yearly,
+             x = euro_yearly.index, y = euro_yearly.columns,
+             title = "Totaux Européens en production par type d'énergie renouvelable",
+             labels = {"x": "Année", "y": "Valeur (MW)"})
+        fig.update_layout(barmode = 'stack',
+                        xaxis_title = "Année", yaxis_title = "Valeurs",
+                        legend_title = "Classification")
+
+        for classification, color in colors_euro.items():
+            fig.update_traces(marker_color=color, selector=dict(name=classification))
+
+        return fig
+    
+    #Variables pour df1 & df2
+    distrib_col = ['Région', 'Année', 'Ech. physiques (MW)']
+    distrib = df[distrib_col].groupby(['Région', 'Année'])['Ech. physiques (MW)'].sum().reset_index()
+    distrib = distrib[distrib['Année'] != 2021] # On ne veux pas de 2021 dans cette étude
+    
+    def create_df1_chart(df, region):
+        #Normalisation pour meilleur représentation visuelle.
+        scaler = StandardScaler()
+        distrib["Ech. physiques (MW)"] = scaler.fit_transform(distrib["Ech. physiques (MW)"].values.reshape(-1, 1))
+
+        #Plot
+        plt.figure(figsize=(10, 6))
+        region_data = distrib[distrib["Région"] == region]
+        plt.plot(region_data["Année"], region_data["Ech. physiques (MW)"], marker='o')
+        plt.title(f"Progression annuelle des échanges physiques en {region}")
+        plt.xlabel("Année")
+        plt.ylabel("Ech. physiques (MW)")
+        plt.grid(True)
+        st.pyplot(plt) 
+
+    # #TCO & TCH
+    # # Conversion au format DateTime
+
+    # ## Création d'un DataFrame pour l'analyse des TCO/TCH
+    # # Sauvegarde de chaque colonnes contenant TCO ou TCH dans son nom
+    # tco_columns = [col for col in df.columns if 'TCO' in col]
+    # tch_columns = [col for col in df.columns if 'TCH' in col]
+    # base_columns = ['Date', 'Région']
+
+    # # On réassemble les colonnes et on construit un nouveau DataFrame TCO/TCH
+    # selected_columns = base_columns + tco_columns + tch_columns
+    # tco_tch = df[selected_columns]
+
+    # tco_tch['Date'] = pd.to_datetime(tco_tch['Date'], format ='%Y-%m-%d')
+    # tco_tch['Mois'] = tco_tch['Date'].dt.month_name() # Ajout du mois de l'année
+
+    # # Liste contenant les mois dans l'ordre chronologique pour plotly
+    # month_order = ['January', 'February', 'March', 'April',
+    #             'May', 'June', 'July', 'August', 'September',
+    #             'October', 'November', 'December']
+
+    # # Création d'un Dataframe groupé pour analyse des Taux de charge solaire
+    # tco_tch_grouped_solaire = tco_tch.groupby(['Région', 'Mois'])['TCH Solaire (%)'].mean().reset_index()
+    # tco_tch_grouped_solaire['Mois'] = pd.Categorical(tco_tch_grouped_solaire['Mois'],
+    #                                                 categories = month_order,
+    #                                                 ordered = True)
+    # tco_tch_grouped_solaire = tco_tch_grouped_solaire.sort_values(by = 'Mois')
+
+    # # Création d'un Dataframe groupé pour analyse des Taux de charge éolien
+    # tco_tch_grouped_eolien = tco_tch.groupby(['Région', 'Mois'])['TCH Eolien (%)'].mean().reset_index()
+    # tco_tch_grouped_eolien['Mois'] = pd.Categorical(tco_tch_grouped_eolien['Mois'],
+    #                                                 categories = month_order,
+    #                                                 ordered = True)
+    # tco_tch_grouped_eolien = tco_tch_grouped_eolien.sort_values(by = 'Mois')
+
+    # # Création d'un Dataframe groupé pour analyse des Taux de couverture nucléaire
+    # tco_nuke = tco_tch.groupby(['Région', 'Mois'])['TCO Nucléaire (%)'].mean().reset_index()
+    # tco_nuke['Mois'] = pd.Categorical(tco_nuke['Mois'], categories = month_order,
+    #                                 ordered = True)
+    # tco_nuke = tco_nuke.sort_values(by = 'Mois')
+
+    def create_tcf1_chart(df):
+        fig = px.line(
+        tco_tch_grouped_solaire,
+        x = 'Mois',
+        y = 'TCH Solaire (%)',
+        color = 'Région',
+        title = 'TCH Solaire (%) par Mois et Région'
+        )
+
+        # Titres
+        fig.update_layout(
+            xaxis_title = 'Mois',
+            yaxis_title = 'TCH Solaire (%)',
+            legend_title = 'Région',
+        )
+
+        return fig
+    
+    def create_tcf2_chart(df):
+        fig = px.line(
+        tco_tch_grouped_eolien,
+        x = 'Mois',
+        y = 'TCH Eolien (%)',
+        color = 'Région',
+        title = 'TCH Eolien (%) par Mois et Région'
+        )
+
+        # Titres
+        fig.update_layout(
+        xaxis_title = 'Mois',
+        yaxis_title = 'TCH Eolien (%)',
+        legend_title = 'Région',
+        )
+
+        return fig
+    
+    def create_tcf3_chart(df):
+        fig = px.line(
+        tco_nuke,
+        x = 'Mois',
+        y = 'TCO Nucléaire (%)',
+        color = 'Région',
+        title = 'TCO Nucléaire (%) par Mois et Région'
+        )
+
+        # Titres
+        fig.update_layout(
+        xaxis_title = 'Mois',
+        yaxis_title = 'TCO Nucléaire %',
+        legend_title = 'Région',
+        )
+
+        return fig
+    
+    daily_total_year = consommation.groupby(['Heure', 'Année'])['Consommation (MW)'].mean()
+    df_daily = pd.DataFrame(daily_total_year).reset_index()
+
+    def create_cf4_chart(df):
+        fig = px.line(df_daily,
+              x = 'Heure', y = 'Consommation (MW)',
+              color = 'Année', hover_data = ['Année'])
+        fig.update_layout(title='Consommation dans une journée type, par année')
+        return fig
 
     ''' APRES CETTE LIMITE, ON AJOUTE TOUS LES TITRES, BODY ET APPELS DES FONCTIONS.'''
    
+    ### PRODUCTION ###
     st.title('1. Production de l\'énergie')
 
     # PF1
@@ -180,7 +326,7 @@ def visualisation():
 
     #PF4
 
-    st.write("Sélectionnez un type d'énergie verte pour voir son split de production par région")
+    st.warning("Sélectionnez un type d'énergie verte pour voir son split de production par région", icon= "🤖")
     type_energies = green.columns[1:]
     selected_energy = st.selectbox("Type d'énergie:", type_energies)
 
@@ -201,27 +347,63 @@ def visualisation():
 
     st.info("Sur ce graphique, nous observons les diverses régions qui génèrent de l'énergie à partir de leurs centrales nucléaires.​Il est notable que seules sept régions sont impliquées dans la production de cette forme d'énergie, avec l'Auvergne, le Grand Est et la région Centre se distinguant comme les principaux acteurs.​ Toutefois, en raison de la prédominance de l'énergie nucléaire dans la stratégie énergétique de la France, qui représente environ 70 % de sa production totale, toutes les régions du pays sont dépendantes de cette source d'énergie et en importent.​ Comme nous allons pouvoir le voir dans la partie 'Distribution' les balances d'exportation d'énergie des régions produisant du nucléaire sont toujours excédentaires.")
 
-    #PLACEHOLDER TCO TCH
+    st.title("Focus sur TCO & TCH")
+    st.info("Le taux de charge d'une filière se réfère à la quantité de production par rapport à la capacité de production totale en service de cette filière.", icon= "ℹ️")
+    
+    # tcf1_chart = create_tcf1_chart(tco_tch)
+    # st.plotly_chart(tcf1_chart)
+    # st.write("Le graphique présent affiche les moyennes des taux de charge pour l'énergie solaire, mettant en évidence des pics naturels pendant les mois estivaux, lorsque l'ensoleillement est plus intense. La moyenne maximale se situe aux alentours de 50%. Ce qui ressort de cette analyse, c'est que les régions générant la plus grande quantité d'énergie solaire ont généralement des taux de charge moyens plus bas. Ceci s'explique par la plus grande taille de leurs installations par rapport à d'autres régions. Par exemple, la région Centre ne contribue qu'à 3% de la production d'énergie solaire totale, mais en juillet, elle détient le record du taux de charge, dépassant les 50%.")
+    
+    # tcf2_chart = create_tcf2_chart(tco_tch)
+    # st.plotly_chart(tcf2_chart)
+    # st.write("Le graphique ci-dessous illustre le taux de charge éolien, mettant en évidence des pics pendant la saison hivernale. On observe un taux de charge moyen record pour les régions Grand Est et Centre, dépassant les 50% en février. Ces deux régions contribuent respectivement à 22% et 8% de la production éolienne en France. En revanche, la région Hauts-de-France, qui représente près de 26% de la production éolienne totale, affiche une moyenne de taux de charge maximale de 46%, ce qui s'explique également par la taille de ses installations.")
 
-
+    # st.info("Le taux de couverture d’une filière de production au sein d’une région représente la part de cette filière dans la consommation de cette région.", icon= "ℹ️")
+    # tcf3_chart = create_tcf3_chart(tco_tch)
+    # st.plotly_chart(tcf3_chart)
+    # st.write("Nous choisissons ici d'observer les variations du taux de couverture du nucléaire, pour observer les différences des tendances entre les régions au cours de l'année.​ Ce que nous pouvons voir très clairement, c'est que la région Centre Val de Loire se démarque tout particulièrement, car c'est une région fortement productrice, mais peu consommatrice, et son taux de couverture est largement au-dessus de 100% lorsque la consommation est moins forte dans cette région.​")
 
     st.header('Donnée de la production des Pays Européens')
 
     pe1a_chart = create_pe1a_chart(EUROPE_PROD)
     st.plotly_chart(pe1a_chart)
+    st.info("Le graphique PE1a montre la production d'énergies renouvelables en Europe, avec l'Allemagne en tête, suivie de la France et de l'Italie à égalité en deuxième position, et la Suède en troisième. Les facteurs influençant ces résultats incluent les ressources naturelles, les politiques gouvernementales, les investissements dans les technologies écologiques, ainsi que la taille et la consommation énergétique des pays. En Allemagne, l'accent est mis sur l'éolien, le solaire photovoltaïque et la biomasse grâce à l'initiative Energiewende. La France, bien que dépendante du nucléaire, cherche à diversifier son mix énergétique en favorisant les énergies renouvelables, en particulier l'hydroélectricité. L'Italie se distingue par son potentiel en énergie solaire photovoltaïque, tandis que la Suède mise sur l'hydroélectricité et la bioénergie pour atteindre une production énergétique 100% renouvelable d'ici 2040. L'Allemagne et la France se démarquent également dans les biocarburants et la bioénergie, grâce à des politiques favorables, des ressources agricoles abondantes et des incitations financières pour la production d'énergie à partir de résidus organiques.")
+
+    pe2a_chart = create_pe2a_chart(EUROPE_PROD)
+    st.plotly_chart(pe2a_chart)
+    st.info("L'augmentation annuelle la plus marquée est celle des énergies suivantes: énergies renouvelables, telles que les biocarburants, les pompes à chaleur, le solaire photovoltaïque et l'éolien.")
+
 
     st.title("Distribution de l'énergie")
 
-    #PLACEHOLDER DISTRIBUTION
+    st.warning("Sélectionnez une région pour afficher le graphique", icon= "🤖")
+    regions = distrib["Région"].unique()
+    selected_region = st.selectbox("Région", regions)
+    create_df1_chart(distrib, selected_region)
 
+    st.image("images/distrib_map.png")
+    st.info("La carte de France nous montre en rouge les régions les plus importatrices, et en bleu les plus exporatrices. Les tendances restent très stables de 2013 à 2021.")
+    
+    ### CONSOMMATION ###
+    
     st.title("Consommation de l'énergie")
+    # CF1
+    st.image("images/CF1.png")
+    st.write("")
 
     # CF2
-
+    st.image("images/CF2.png")
+    st.write("")
+    
     # CF3
+    st.image("images/CF3.png")
+    st.write("")
 
     # CF4
-
+    
+    cf4_chart = create_cf4_chart(consommation)
+    st.plotly_chart(cf4_chart)
+    
     # CF5 &/ou 6
 
     # CF7
@@ -229,4 +411,3 @@ def visualisation():
     # CF8 / 9 / 11
 
     st.title('Comparaison de la production et de la consommation de l\'énergie')
-

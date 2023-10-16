@@ -199,46 +199,36 @@ def visualisation():
         plt.grid(True)
         st.pyplot(plt) 
 
-    # #TCO & TCH
-    # # Conversion au format DateTime
+    #TCO & TCH
+    # Liste contenant les mois dans l'ordre chronologique pour plotly
+    month_order = ['January', 'February', 'March', 'April',
+               'May', 'June', 'July', 'August', 'September',
+               'October', 'November', 'December']
 
-    # ## Création d'un DataFrame pour l'analyse des TCO/TCH
-    # # Sauvegarde de chaque colonnes contenant TCO ou TCH dans son nom
-    # tco_columns = [col for col in df.columns if 'TCO' in col]
-    # tch_columns = [col for col in df.columns if 'TCH' in col]
-    # base_columns = ['Date', 'Région']
+    tco_tch_table = pq.read_table('datasets/tco_tch.parquet')
+    tco_tch = tco_tch_table.to_pandas()
 
-    # # On réassemble les colonnes et on construit un nouveau DataFrame TCO/TCH
-    # selected_columns = base_columns + tco_columns + tch_columns
-    # tco_tch = df[selected_columns]
+    st.dataframe(tco_tch.head(5))
 
-    # tco_tch['Date'] = pd.to_datetime(tco_tch['Date'], format ='%Y-%m-%d')
-    # tco_tch['Mois'] = tco_tch['Date'].dt.month_name() # Ajout du mois de l'année
+    # Création d'un Dataframe groupé pour analyse des Taux de charge solaire
+    tco_tch_grouped_solaire = tco_tch.groupby(['Région', 'Mois'])['TCH Solaire (%)'].mean().reset_index()
+    tco_tch_grouped_solaire['Mois'] = pd.Categorical(tco_tch_grouped_solaire['Mois'],
+                                                    categories = month_order,
+                                                    ordered = True)
+    tco_tch_grouped_solaire = tco_tch_grouped_solaire.sort_values(by = 'Mois')
 
-    # # Liste contenant les mois dans l'ordre chronologique pour plotly
-    # month_order = ['January', 'February', 'March', 'April',
-    #             'May', 'June', 'July', 'August', 'September',
-    #             'October', 'November', 'December']
+    # Création d'un Dataframe groupé pour analyse des Taux de charge éolien
+    tco_tch_grouped_eolien = tco_tch.groupby(['Région', 'Mois'])['TCH Eolien (%)'].mean().reset_index()
+    tco_tch_grouped_eolien['Mois'] = pd.Categorical(tco_tch_grouped_eolien['Mois'],
+                                                    categories = month_order,
+                                                    ordered = True)
+    tco_tch_grouped_eolien = tco_tch_grouped_eolien.sort_values(by = 'Mois')
 
-    # # Création d'un Dataframe groupé pour analyse des Taux de charge solaire
-    # tco_tch_grouped_solaire = tco_tch.groupby(['Région', 'Mois'])['TCH Solaire (%)'].mean().reset_index()
-    # tco_tch_grouped_solaire['Mois'] = pd.Categorical(tco_tch_grouped_solaire['Mois'],
-    #                                                 categories = month_order,
-    #                                                 ordered = True)
-    # tco_tch_grouped_solaire = tco_tch_grouped_solaire.sort_values(by = 'Mois')
-
-    # # Création d'un Dataframe groupé pour analyse des Taux de charge éolien
-    # tco_tch_grouped_eolien = tco_tch.groupby(['Région', 'Mois'])['TCH Eolien (%)'].mean().reset_index()
-    # tco_tch_grouped_eolien['Mois'] = pd.Categorical(tco_tch_grouped_eolien['Mois'],
-    #                                                 categories = month_order,
-    #                                                 ordered = True)
-    # tco_tch_grouped_eolien = tco_tch_grouped_eolien.sort_values(by = 'Mois')
-
-    # # Création d'un Dataframe groupé pour analyse des Taux de couverture nucléaire
-    # tco_nuke = tco_tch.groupby(['Région', 'Mois'])['TCO Nucléaire (%)'].mean().reset_index()
-    # tco_nuke['Mois'] = pd.Categorical(tco_nuke['Mois'], categories = month_order,
-    #                                 ordered = True)
-    # tco_nuke = tco_nuke.sort_values(by = 'Mois')
+    # Création d'un Dataframe groupé pour analyse des Taux de couverture nucléaire
+    tco_nuke = tco_tch.groupby(['Région', 'Mois'])['TCO Nucléaire (%)'].mean().reset_index()
+    tco_nuke['Mois'] = pd.Categorical(tco_nuke['Mois'], categories = month_order,
+                                    ordered = True)
+    tco_nuke = tco_nuke.sort_values(by = 'Mois')
 
     def create_tcf1_chart(df):
         fig = px.line(
@@ -350,18 +340,18 @@ def visualisation():
     st.title("Focus sur TCO & TCH")
     st.info("Le taux de charge d'une filière se réfère à la quantité de production par rapport à la capacité de production totale en service de cette filière.", icon= "ℹ️")
     
-    # tcf1_chart = create_tcf1_chart(tco_tch)
-    # st.plotly_chart(tcf1_chart)
-    # st.write("Le graphique présent affiche les moyennes des taux de charge pour l'énergie solaire, mettant en évidence des pics naturels pendant les mois estivaux, lorsque l'ensoleillement est plus intense. La moyenne maximale se situe aux alentours de 50%. Ce qui ressort de cette analyse, c'est que les régions générant la plus grande quantité d'énergie solaire ont généralement des taux de charge moyens plus bas. Ceci s'explique par la plus grande taille de leurs installations par rapport à d'autres régions. Par exemple, la région Centre ne contribue qu'à 3% de la production d'énergie solaire totale, mais en juillet, elle détient le record du taux de charge, dépassant les 50%.")
+    tcf1_chart = create_tcf1_chart(tco_tch)
+    st.plotly_chart(tcf1_chart)
+    st.write("Le graphique présent affiche les moyennes des taux de charge pour l'énergie solaire, mettant en évidence des pics naturels pendant les mois estivaux, lorsque l'ensoleillement est plus intense. La moyenne maximale se situe aux alentours de 50%. Ce qui ressort de cette analyse, c'est que les régions générant la plus grande quantité d'énergie solaire ont généralement des taux de charge moyens plus bas. Ceci s'explique par la plus grande taille de leurs installations par rapport à d'autres régions. Par exemple, la région Centre ne contribue qu'à 3% de la production d'énergie solaire totale, mais en juillet, elle détient le record du taux de charge, dépassant les 50%.")
     
-    # tcf2_chart = create_tcf2_chart(tco_tch)
-    # st.plotly_chart(tcf2_chart)
-    # st.write("Le graphique ci-dessous illustre le taux de charge éolien, mettant en évidence des pics pendant la saison hivernale. On observe un taux de charge moyen record pour les régions Grand Est et Centre, dépassant les 50% en février. Ces deux régions contribuent respectivement à 22% et 8% de la production éolienne en France. En revanche, la région Hauts-de-France, qui représente près de 26% de la production éolienne totale, affiche une moyenne de taux de charge maximale de 46%, ce qui s'explique également par la taille de ses installations.")
+    tcf2_chart = create_tcf2_chart(tco_tch)
+    st.plotly_chart(tcf2_chart)
+    st.write("Le graphique ci-dessous illustre le taux de charge éolien, mettant en évidence des pics pendant la saison hivernale. On observe un taux de charge moyen record pour les régions Grand Est et Centre, dépassant les 50% en février. Ces deux régions contribuent respectivement à 22% et 8% de la production éolienne en France. En revanche, la région Hauts-de-France, qui représente près de 26% de la production éolienne totale, affiche une moyenne de taux de charge maximale de 46%, ce qui s'explique également par la taille de ses installations.")
 
-    # st.info("Le taux de couverture d’une filière de production au sein d’une région représente la part de cette filière dans la consommation de cette région.", icon= "ℹ️")
-    # tcf3_chart = create_tcf3_chart(tco_tch)
-    # st.plotly_chart(tcf3_chart)
-    # st.write("Nous choisissons ici d'observer les variations du taux de couverture du nucléaire, pour observer les différences des tendances entre les régions au cours de l'année.​ Ce que nous pouvons voir très clairement, c'est que la région Centre Val de Loire se démarque tout particulièrement, car c'est une région fortement productrice, mais peu consommatrice, et son taux de couverture est largement au-dessus de 100% lorsque la consommation est moins forte dans cette région.​")
+    st.info("Le taux de couverture d’une filière de production au sein d’une région représente la part de cette filière dans la consommation de cette région.", icon= "ℹ️")
+    tcf3_chart = create_tcf3_chart(tco_tch)
+    st.plotly_chart(tcf3_chart)
+    st.write("Nous choisissons ici d'observer les variations du taux de couverture du nucléaire, pour observer les différences des tendances entre les régions au cours de l'année.​ Ce que nous pouvons voir très clairement, c'est que la région Centre Val de Loire se démarque tout particulièrement, car c'est une région fortement productrice, mais peu consommatrice, et son taux de couverture est largement au-dessus de 100% lorsque la consommation est moins forte dans cette région.​")
 
     st.header('Donnée de la production des Pays Européens')
 

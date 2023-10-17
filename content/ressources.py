@@ -32,6 +32,7 @@ def ressources():
     st.markdown("""
                 Les outils suivants ont été utilisés pour le déploiement de ce projet :
                 - **[Jupyter Notebook](https://jupyter.org/)** : Un environnement de développement interactif qui favorise une programmation exploratoire et interactive.
+                - **[Google Colab](https://colab.research.google.com/)** : Un environnement de notebook dans le cloud qui permet l'exécution de code Python de façon collaborative.
                 - **[Visual Studio Code](https://code.visualstudio.com/)** : Un éditeur de code source extensible utilisé pour le développement de l'application.
                 - **[Git](https://git-scm.com/)** : Un système de contrôle de version distribué utilisé pour suivre les changements dans le code source durant le développement de l'application.
                 - **[Streamlit Cloud](https://streamlit.io/cloud)** : Utilisé pour le déploiement de l'application en ligne.

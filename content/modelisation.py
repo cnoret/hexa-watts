@@ -16,7 +16,7 @@ def modelisation():
 
     if choix_modele == 'Régression Linéaire':
         # Import modèle
-        model_reglin = joblib.load("models/line_reg_model_full.joblib")
+        model_reglin = joblib.load(filename="./models/line_reg_model_full.joblib")
 
         # Prediction
         prediction = model_reglin.predict(selected_date)
@@ -24,7 +24,7 @@ def modelisation():
 
     elif choix_modele == 'Ridge':
         # Import modèle
-        model_ridge = joblib.load("/models/ridge_model_full.joblib")
+        model_ridge = joblib.load(filename="./models/ridge_model_full.joblib")
 
         # Prediction
         prediction = model_ridge.predict(selected_date)

@@ -16,7 +16,7 @@ def ressources():
                 """)
 
     st.title("Compétences et technologies")
-    st.subheader('Python')
+    st.markdown("### Python 🐍", unsafe_allow_html = True)
     st.markdown("""
                 Les bibliothèques suivantes ont été utilisées dans ce projet :
                 - **[Pandas](https://pandas.pydata.org/)** : Utilisé pour la manipulation des données et l'analyse.

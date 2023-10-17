@@ -113,7 +113,7 @@ def modelisation():
             if choix_modele == 'Régression Linéaire':
                 model = joblib.load("models/model_reglin.joblib")
             elif choix_modele == 'Régression Ridge':
-                model = joblib.load("models/ridge_model_full.joblib")
+                model = joblib.load("models/model_ridge.joblib")
 
             # Prédiction de la consommation d'énergie
             try:

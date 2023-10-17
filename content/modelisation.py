@@ -1,4 +1,4 @@
-import datetime as dt
+import datetime
 import streamlit as st
 import joblib
 import numpy as np
@@ -27,19 +27,28 @@ def get_user_input():
         "Pays de la Loire", 
         "Provence-Alpes-Côte d'Azur"
     ])
+    
     # Choix de la date
-    date = st.date_input('Date pour la prédiction', value = dt.date.today(),
+    date = st.date_input('Date pour la prédiction', value = datetime.date.today(),
                                   min_value=None, max_value=None, key=None, help=None, 
                                   on_change=None, args=None, kwargs=None, format="DD/MM/YYYY", 
                                   disabled=False, label_visibility="visible")
 
+    # Choix de l'heure
+    heure = st.time_input("Heure", datetime.datetime.now())
+
+    # Calcul de sin_heure et cos_heure
+    heure_decimal = heure.hour + heure.minute / 60.0
+    sin_heure = np.sin(2 * np.pi * heure_decimal / 24)
+    cos_heure = np.cos(2 * np.pi * heure_decimal / 24)
+    
     st.subheader("Sélection des températures")
-    # L'utilisateur peut entrer les températures minimale, moyenne et maximale
+    # Sélection des températures minimale, moyenne et maximale
     tmin = st.number_input("Température minimale (°C)")
     tmoy = st.number_input("Température moyenne (°C)")
     tmax = st.number_input("Température maximale (°C)")
 
-    # Convertir la date en caractéristiques spécifiques: Jour, Mois, Jour_mois, Année
+    # Convertir la date en : Jour, Mois, Jour_mois, Année
     jour = date.strftime("%A")
     mois = date.strftime("%B")
     jour_mois = date.day
@@ -55,6 +64,8 @@ def get_user_input():
         "TMin (°C)": tmin,
         "TMax (°C)": tmax,
         "TMoy (°C)": tmoy,
+        "sin_heure": sin_heure,
+        "cos_heure": cos_heure,
     }
     return choix_modele, user_input
 
@@ -82,7 +93,7 @@ def modelisation():
         # Prédiction de la consommation d'énergie
         prediction = model.predict(features)
         st.write(f"Résultat de la prédiction: {prediction[0]} MW")
-        
+
         # PLACEHOLDER METRICS
         # PLACEHOLDER EXPLICATION
     

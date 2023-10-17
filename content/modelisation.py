@@ -1,8 +1,13 @@
+"""
+Création de la page "Modélisation" de l'application Énergie_France
+"""
+
 import datetime
 import streamlit as st
 import joblib
 import numpy as np
 import pandas as pd
+from sklearn.exceptions import NotFittedError
 
 # Chargement du OneHotEncoder
 encoder = joblib.load('models/encoder.joblib')
@@ -13,7 +18,7 @@ def preprocess(user_input):
     input_df = pd.DataFrame([user_input])
 
     # L'ordre des colonnes doit également correspondre.
-    expected_columns = ['Région', 'Jour', 'Mois', 'Jour_mois', 'Année', 'TMin (°C)', 
+    expected_columns = ['Région', 'Jour', 'Mois', 'Jour_mois', 'Année', 'TMin (°C)',
                         'TMax (°C)', 'TMoy (°C)', 'sin_heure', 'cos_heure']
     input_df = input_df.reindex(columns = expected_columns, fill_value = 0)
 
@@ -25,8 +30,11 @@ def preprocess(user_input):
     # Encodage one-hot
     try:
         input_df_encoded = encoder.transform(input_df)
-    except Exception as e:
-        st.write(f"Une erreur s'est produite lors de l'encodage des données : {e}")
+    except NotFittedError as e:
+        st.write(f"Erreur d'encodage : l'encodeur n'est pas ajusté aux données : {e}")
+        return None
+    except ValueError as e:
+        st.write(f"Erreur de valeur : problème avec l'entrée des données : {e}")
         return None
     return input_df_encoded
 
@@ -54,8 +62,8 @@ def get_user_input():
 
     # Choix de la date
     date = st.date_input('Date', value = datetime.date.today(),
-                                  min_value=None, max_value=None, key=None, help=None, 
-                                  on_change=None, args=None, kwargs=None, format="DD/MM/YYYY", 
+                                  min_value=None, max_value=None, key=None, help=None,
+                                  on_change=None, args=None, kwargs=None, format="DD/MM/YYYY",
                                   disabled=False, label_visibility="visible")
 
     # Choix de l'heure
@@ -119,9 +127,7 @@ def modelisation():
             try:
                 prediction = model.predict(features)
                 st.warning(f"Consommation prédite : {round(prediction[0])} MW", icon = "🤖")
-            except Exception as e:
-                st.write(f"Une erreur s'est produite lors de la prédiction : {e}")
-
-        # PLACEHOLDER METRICS
-        # PLACEHOLDER CONCLUSION
-    
+            except NotFittedError as e:
+                st.error(f"Erreur : le modèle n'a pas été entraîné : {e}")
+            except ValueError as e:
+                st.error(f"Erreur de valeur : problème avec l'entrée des données : {e}")

@@ -2,9 +2,33 @@ import datetime
 import streamlit as st
 import joblib
 import numpy as np
+import pandas as pd
 
-def preprocess():
-    pass
+# Chargement du OneHotEncoder
+encoder = joblib.load('models/encoder.joblib')
+
+def preprocess(user_input):
+    "Transformation des données de l'utilisateur"
+    # Convertir les entrées utilisateur en dataframe
+    input_df = pd.DataFrame([user_input])
+
+    # L'ordre des colonnes doit également correspondre.
+    expected_columns = ['Région', 'Jour', 'Mois', 'Jour_mois', 'Année', 'TMin (°C)', 
+                        'TMax (°C)', 'TMoy (°C)', 'sin_heure', 'cos_heure']
+    input_df = input_df.reindex(columns = expected_columns, fill_value = 0)
+
+    # Affichage des données utilisateurs
+    st.subheader("Prédiction : ")
+    st.write("Données sélectionnées : ")
+    st.dataframe(input_df, hide_index = True)
+
+    # Encodage one-hot
+    try:
+        input_df_encoded = encoder.transform(input_df)
+    except Exception as e:
+        st.write(f"Une erreur s'est produite lors de l'encodage des données : {e}")
+        return None
+    return input_df_encoded
 
 def get_user_input():
     "Collecte des données fournies par l'utilisateur"
@@ -27,9 +51,9 @@ def get_user_input():
         "Pays de la Loire", 
         "Provence-Alpes-Côte d'Azur"
     ])
-    
+
     # Choix de la date
-    date = st.date_input('Date pour la prédiction', value = datetime.date.today(),
+    date = st.date_input('Date', value = datetime.date.today(),
                                   min_value=None, max_value=None, key=None, help=None, 
                                   on_change=None, args=None, kwargs=None, format="DD/MM/YYYY", 
                                   disabled=False, label_visibility="visible")
@@ -41,9 +65,9 @@ def get_user_input():
     heure_decimal = heure.hour + heure.minute / 60.0
     sin_heure = np.sin(2 * np.pi * heure_decimal / 24)
     cos_heure = np.cos(2 * np.pi * heure_decimal / 24)
-    
-    st.subheader("Sélection des températures")
+
     # Sélection des températures minimale, moyenne et maximale
+    st.subheader("Sélection des températures")
     tmin = st.number_input("Température minimale (°C)")
     tmoy = st.number_input("Température moyenne (°C)")
     tmax = st.number_input("Température maximale (°C)")
@@ -84,16 +108,20 @@ def modelisation():
         # Prétraitement des entrées de l'utilisateur
         features = preprocess(user_input)
 
-        # Sélection du modèle et prédiction
-        if choix_modele == 'Régression Linéaire':
-            model = joblib.load("models/line_reg_model_full.joblib")
-        elif choix_modele == 'Régression Ridge':
-            model = joblib.load("models/ridge_model_full.joblib")
+        if features is not None:
+            # Sélection du modèle et prédiction
+            if choix_modele == 'Régression Linéaire':
+                model = joblib.load("models/model_reglin.joblib")
+            elif choix_modele == 'Régression Ridge':
+                model = joblib.load("models/ridge_model_full.joblib")
 
-        # Prédiction de la consommation d'énergie
-        prediction = model.predict(features)
-        st.write(f"Résultat de la prédiction: {prediction[0]} MW")
+            # Prédiction de la consommation d'énergie
+            try:
+                prediction = model.predict(features)
+                st.warning(f"Consommation prédite : {round(prediction[0])} MW", icon = "🤖")
+            except Exception as e:
+                st.write(f"Une erreur s'est produite lors de la prédiction : {e}")
 
         # PLACEHOLDER METRICS
-        # PLACEHOLDER EXPLICATION
+        # PLACEHOLDER CONCLUSION
     

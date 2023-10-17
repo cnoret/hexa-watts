@@ -7,7 +7,7 @@ def exploration():
     st.title("Exploration des données")
 
     # URL image en haut de page
-    image_url = "https://www.shareicon.net/data/512x512/2015/10/26/662431_database_512x512.png"
+    image_url = "images/diggy.png"
     # On display cette image en haut de page
     st.image(image_url, width=200)
 

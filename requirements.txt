@@ -11,3 +11,4 @@ plotly
 colorcet
 seaborn
 datetime
+joblib

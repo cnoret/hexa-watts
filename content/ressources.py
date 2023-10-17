@@ -38,3 +38,4 @@ def ressources():
                 - **[Streamlit Cloud](https://streamlit.io/cloud)** : Utilisé pour le déploiement de l'application en ligne.
                 - **[GitHub](https://github.com/)** : Utilisé pour le contrôle de version et le stockage du code de l'application.
                 """)
+    

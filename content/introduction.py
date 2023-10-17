@@ -1,8 +1,12 @@
+"""
+Création de la page "Introduction" de l'application Énergie_France
+"""
+
 import streamlit as st
 from PIL import Image
 
 def introduction():
-    "Landing page"
+    "Contenu de la page d'accueil"
     image_top = Image.open("images/nucleaire.jpeg")
     st.image(image_top, caption = "Centrale nucléaire de Saint Laurent des Eaux \
              - Photo : Sipa / Patrick SICCOLI", width = 500)
@@ -20,7 +24,7 @@ def introduction():
              et anticiper les périodes à risques afin de pouvoir prendre des mesures préventives sur le réseau électrique.")
     st.write("Notre projet vise donc à exploiter certaines données spécifiques afin de mieux comprendre et gérer les différents équilibres énergiques.")
     st.error("Nous nous insérons dans ce domaine sans connaissance réelle du domaine de l'énergétique et nous devrons également acquérir les connaissances spécifiques liées à la production d'électricité en France.")
-    
+
     st.subheader("Objectifs de l'analyse")
     st.write("* Analyser les données de consommation électrique afin d'identifier des tendances et des schémas de consommation")
     st.write("* Analyser et comparer les différentes filières de production (Nucléaire/Renouvelable)")

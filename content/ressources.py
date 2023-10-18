@@ -13,6 +13,7 @@ def ressources():
                 - **Population Française par région** : [INSEE Statistiques](https://www.insee.fr/fr/statistiques)
                 - **Températures régionales** : [Météo France](https://donneespubliques.meteofrance.fr)
                 - **Bilans énergétiques (Europe)** : [Eurostat](https://ec.europa.eu/eurostat/fr)
+                - **Carte des région de France (GeoJSON)** [par Grégoire David.](https://france-geojson.gregoiredavid.fr/)
                 """)
 
     st.title("Compétences et technologies")
@@ -26,6 +27,7 @@ def ressources():
                 - **[Scikit-Learn](https://scikit-learn.org/stable/)** : Utilisé pour la modélisation des données, y compris la préparation, le prétraitement et la prédiction.
                 - **[Streamlit](https://streamlit.io/)** : Streamlit permet de transformer des scripts de données en applications web partageables.
                 - **[Pylint](https://www.pylint.org/)** : Outil d'analyse de code source aidant à maintenir un code homogène respectant les conventions et le style Python PEP 8.
+                - **[Geopandas](https://geopandas.org/en/stable/)** : Outil utilisé pour visualiser nos données sur la carte de France en GeoJSON.
                 """)
 
     st.subheader('Développement et Déploiement')

@@ -14,3 +14,9 @@ def conclusion():
          "- Des actions décisives et réfléchies de la part du gouvernement.")
     
     st.warning("Il est crucial de rester vigilants face au greenwashing et aux engouements passagers. Conduire un SUV électrique, par exemple, ne garantit en aucun cas un mode de vie respectueux de nos défis énergétiques. Il est essentiel d'adopter des approches authentiques et durables pour réellement contribuer à résoudre nos problèmes énergétiques.", icon = '🚙')
+
+    st.warning("Notre stratégie énergétique, basée en majorité sur le Nucléaire, est fortement soumise aux risques géopolitiques du monde actuel. Le coup d'état au Niger, au même la Guerre en Ukraine représentent des éléments qui viennent profondémment perturber et parfois même fragiliser cette stratégie, d'où l'importance d'avoir un plan de contigence raisoné.")
+    st.title("La décarbonisation de l'économie : Le rôle de l'Afrique & son hydrogène.")
+    st.write("""Une solution existe pour contrer le manque d'électricité lié à une augmentation exponentielle de la demande suite à la sortie des énergies fossiles.
+             L'hydrogène 'H2', l'élément chimique le plus répandu dans l'univers, nous sert déjà pour alimenter nos transports les plus couteux en énergie.
+             Cette source d'énergie peut être produite de manière propre et décarbonée, de nombreux projets sont entrain de voir le jour en Afrique, notamment en Namibie.""")

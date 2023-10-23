@@ -10,9 +10,8 @@ def exploration():
     "Page d'exploration"
     st.title("Exploration des données")
 
-    # URL image en haut de page
+    # Image
     image_url = "images/diggy.png"
-    # On display cette image en haut de page
     st.image(image_url, width=200)
 
     with st.spinner('Chargement des données...⏳'):
@@ -50,17 +49,17 @@ def exploration():
 
     # Display
     st.subheader("Aperçu du jeu de données principal : Eco2Mix (RTE)")
-    st.write("Nombre de lignes:", df.shape[0])
-    st.write("Nombre de colonnes:", df.shape[1])
-    st.write("Échantillon de données:")
+    st.write("Nombre de lignes :", df.shape[0])
+    st.write("Nombre de colonnes :", df.shape[1])
+    st.write("Échantillon de données :")
     st.dataframe(df.head())
 
     st.subheader("Aperçu des valeurs manquantes")
     st.write(nan_info)
 
     st.subheader("Aperçu du jeu de données des températures")
-    st.write("Nombre de lignes:", temp.shape[0])
-    st.write("Nombre de colonnes:", temp.shape[1])
-    st.write("Échantillon de données:")
+    st.write("Nombre de lignes :", temp.shape[0])
+    st.write("Nombre de colonnes :", temp.shape[1])
+    st.write("Échantillon de données :")
     st.dataframe(temp.head())
-    st.write("Nombre de NaN :", temp.isna().sum().sum())
+    st.write("Nombre de valeurs manquantes :", temp.isna().sum().sum())

@@ -170,16 +170,19 @@ def visualisation():
 
         return fig
 
-    @st.cache_data
     def create_pf4_chart(df, type_energie):
-        fig = px.pie(
-            df,
-            names="Région",
-            values=type_energie,
-            color_discrete_sequence=px.colors.sequential.Greens_r,
-            title=f"Répartition de la production d'énergie {type_energie.lower()} par région",
-        )
-        return fig
+        try:
+            fig = px.pie(
+                df,
+                names="Région",
+                values=type_energie,
+                color_discrete_sequence=px.colors.sequential.Greens_r,
+                title=f"Répartition de la production d'énergie {type_energie.lower()} par région",
+            )
+            return fig
+        except Exception as e:
+            st.error(f"Il y a eu une erreure {e}")
+            return None
 
         # Création du DataFrame 'EUROPE_PROD'
 
@@ -253,22 +256,25 @@ def visualisation():
     # On ne veux pas de 2021 dans cette étude
     distrib = distrib[distrib["Année"] != 2021]
 
-    def create_df1_chart(df, region):
-        # Normalisation pour meilleur représentation visuelle.
-        scaler = StandardScaler()
-        distrib["Ech. physiques (MW)"] = scaler.fit_transform(
-            distrib["Ech. physiques (MW)"].values.reshape(-1, 1)
-        )
+    def create_df1_chart(distrib, region):
+        try:
+            # Normalisation
+            scaler = StandardScaler()
+            distrib["Ech. physiques (MW)"] = scaler.fit_transform(
+                distrib["Ech. physiques (MW)"].values.reshape(-1, 1)
+            )
 
-        # Plot
-        plt.figure(figsize=(10, 6))
-        region_data = distrib[distrib["Région"] == region]
-        plt.plot(region_data["Année"], region_data["Ech. physiques (MW)"], marker="o")
-        plt.title(f"Progression annuelle des échanges physiques en {region}")
-        plt.xlabel("Année")
-        plt.ylabel("Ech. physiques (MW)")
-        plt.grid(True)
-        st.pyplot(plt)
+            # Plot
+            plt.figure(figsize=(10, 6))
+            region_data = distrib[distrib["Région"] == region]
+            plt.plot(region_data["Année"], region_data["Ech. physiques (MW)"], marker="o")
+            plt.title(f"Progression annuelle des échanges physiques en {region}")
+            plt.xlabel("Année")
+            plt.ylabel("Ech. physiques (MW)")
+            plt.grid(True)
+            st.pyplot(plt)
+        except Exception as e:
+            st.error(f"ERREURE: {e}")
 
     # TCO & TCH
     # Liste contenant les mois dans l'ordre chronologique pour plotly
@@ -666,30 +672,38 @@ def visualisation():
     total_consommation_by_country = euro_type.groupby("Pays")["Valeur (MW)"].sum()
 
     # Création d'un dictionnaire de données pour le graphique à secteurs de chaque pays
+    def create_pie_chart(data):
+        try:
+            fig = go.Figure(
+                data=[
+                    go.Pie(
+                        labels=data.index, values=data.values, textinfo="percent+label"
+                    )
+                ]
+            )
+
+            return fig
+        except Exception as e:
+            st.error(f"EURREUR {e}")
+            return None
+
     data_for_pie_charts = {}
     for country, group in euro_type.groupby("Pays"):
-        # Calcul de la consommation par type d'énergie pour ce pays
-        group["Pourcentage"] = (
-            group["Valeur (MW)"] / total_consommation_by_country[country]
-        ) * 100
+        group["Pourcentage"] = (group["Valeur (MW)"] / total_consommation_by_country[country]) * 100
         data_for_pie_charts[country] = group.set_index("Class")["Pourcentage"]
 
     countries = euro_type["Pays"].unique()
-
     pays = st.selectbox("Sélectionnez un pays", countries)
-    donnees = data_for_pie_charts[pays]
 
-    ce5 = go.Figure(
-        data=[
-            go.Pie(
-                labels=donnees.index, values=donnees.values, textinfo="percent+label"
+    if pays in data_for_pie_charts:
+        donnees = data_for_pie_charts[pays]
+        ce5 = create_pie_chart(donnees)
+
+        if ce5 is not None:
+            ce5.update_layout(
+                title=f"Pourcentage de la consommation d'énergie renouvelable en {pays} (2013-2021)",
+                legend_title="Catégorie",
             )
-        ]
-    )
-
-    ce5.update_layout(
-        title=f"Pourcentage de la consommation d'énergie renouvelable en {pays} (2013-2021)",
-        legend_title="Catégorie",
-    )
-
-    st.plotly_chart(ce5)
+            st.plotly_chart(ce5)
+    else:
+        st.warning("Données non disponibles pour ce pays.")

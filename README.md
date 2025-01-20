@@ -1,4 +1,4 @@
-# Hexa Watts: Energy Consumption Prediction Application ⚡
+# Hexa Watts: Energy Consumption Prediction Application
 
 ## 🔁 Overview
 

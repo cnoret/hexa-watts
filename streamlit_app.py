@@ -7,6 +7,14 @@ import streamlit as st
 from streamlit_option_menu import option_menu
 from PIL import Image
 
+# Page configuration
+st.set_page_config(
+    page_title="Hexa Watts",
+    page_icon="⚡",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
 # Internal modules
 from content.introduction import introduction
 from content.exploration import exploration
@@ -15,14 +23,6 @@ from content.visualisation import visualisation
 from content.modelisation import modelisation
 from content.conclusion import conclusion
 from content.ressources import ressources
-
-# Page configuration
-st.set_page_config(
-    page_title="Hexa Watts",
-    page_icon="⚡",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
 
 # Sidebar header and menu
 with st.sidebar:

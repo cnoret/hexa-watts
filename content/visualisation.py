@@ -1,5 +1,5 @@
 """
-Création de la page "Visualisation" de l'application Énergie_France
+Creation of the "Visualisation" page for the Hexa Watts application
 """
 
 import streamlit as st
@@ -267,7 +267,9 @@ def visualisation():
             # Plot
             plt.figure(figsize=(10, 6))
             region_data = distrib[distrib["Région"] == region]
-            plt.plot(region_data["Année"], region_data["Ech. physiques (MW)"], marker="o")
+            plt.plot(
+                region_data["Année"], region_data["Ech. physiques (MW)"], marker="o"
+            )
             plt.title(f"Progression annuelle des échanges physiques en {region}")
             plt.xlabel("Année")
             plt.ylabel("Ech. physiques (MW)")
@@ -689,7 +691,9 @@ def visualisation():
 
     data_for_pie_charts = {}
     for country, group in euro_type.groupby("Pays"):
-        group["Pourcentage"] = (group["Valeur (MW)"] / total_consommation_by_country[country]) * 100
+        group["Pourcentage"] = (
+            group["Valeur (MW)"] / total_consommation_by_country[country]
+        ) * 100
         data_for_pie_charts[country] = group.set_index("Class")["Pourcentage"]
 
     countries = euro_type["Pays"].unique()

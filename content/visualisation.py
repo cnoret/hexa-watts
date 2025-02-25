@@ -483,7 +483,7 @@ def visualisation():
     """ APRES CETTE LIMITE, ON AJOUTE TOUS LES TITRES, BODY ET APPELS DES FONCTIONS."""
 
     ### PRODUCTION ###
-    st.title("1. Production de l'énergie")
+    st.title("Production de l'énergie")
 
     # PF1
     pf1_chart = create_pf1_chart(production)
@@ -651,63 +651,3 @@ def visualisation():
     st.write(
         "La consommation d'énergies renouvelables en Europe connaît une croissance significative, stimulée par des politiques environnementales strictes, des objectifs de réduction des émissions et des incitations financières. Les biocarburants gagnent en popularité pour diversifier les transports, tandis que la bioénergie prospère grâce aux ressources forestières et agricoles abondantes. L'énergie hydraulique et éolienne est privilégiée dans des régions adaptées, tandis que le biogaz et les déchets municipaux renouvelables sont encouragés pour une gestion durable des déchets. Les pompes à chaleur, le solaire, et la géothermie sont préférés en fonction des ressources locales, tandis que l'énergie océanique est encore en développement."
     )
-
-    ce3_chart = create_ce3_chart(EUROPE_CONS)
-    st.plotly_chart(ce3_chart)
-    st.info("PLACEHOLDER")
-
-    ce4_chart = create_ce4_chart(EUROPE_CONS)
-    st.plotly_chart(ce4_chart)
-    st.info("PLACEHOLDER")
-
-    # Création d'un sous-ensemble de données pour les années de 2013 à 2021
-    years_to_include = list(range(2013, 2022))
-    df_subset = EUROPE_CONS[EUROPE_CONS["Année"].isin(years_to_include)]
-
-    # Regroupement des données par "Pays" et "Classification" et calcul de la somme de la consommation
-    euro_type = df_subset.groupby(["Pays", "Class"])["Valeur (MW)"].sum().reset_index()
-
-    # Convertion de la colonne "Valeurs" en type de données décimales (float)
-    euro_type["Valeur (MW)"] = euro_type["Valeur (MW)"].astype(float)
-
-    # Calcul de la consommation totale par pays
-    total_consommation_by_country = euro_type.groupby("Pays")["Valeur (MW)"].sum()
-
-    # Création d'un dictionnaire de données pour le graphique à secteurs de chaque pays
-    def create_pie_chart(data):
-        try:
-            fig = go.Figure(
-                data=[
-                    go.Pie(
-                        labels=data.index, values=data.values, textinfo="percent+label"
-                    )
-                ]
-            )
-
-            return fig
-        except Exception as e:
-            st.error(f"EURREUR {e}")
-            return None
-
-    data_for_pie_charts = {}
-    for country, group in euro_type.groupby("Pays"):
-        group["Pourcentage"] = (
-            group["Valeur (MW)"] / total_consommation_by_country[country]
-        ) * 100
-        data_for_pie_charts[country] = group.set_index("Class")["Pourcentage"]
-
-    countries = euro_type["Pays"].unique()
-    pays = st.selectbox("Sélectionnez un pays", countries)
-
-    if pays in data_for_pie_charts:
-        donnees = data_for_pie_charts[pays]
-        ce5 = create_pie_chart(donnees)
-
-        if ce5 is not None:
-            ce5.update_layout(
-                title=f"Pourcentage de la consommation d'énergie renouvelable en {pays} (2013-2021)",
-                legend_title="Catégorie",
-            )
-            st.plotly_chart(ce5)
-    else:
-        st.warning("Données non disponibles pour ce pays.")

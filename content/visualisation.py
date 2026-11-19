@@ -36,67 +36,136 @@ colors_euro = {
     "Geothermique": "#D076FF",  # Violet
 }
 
-EUROPE_DATA = pd.read_csv("datasets/EUROPE_DATA.csv", sep=",")
+PROD_COLS = [
+    "Thermique (MW)",
+    "Nucléaire (MW)",
+    "Eolien (MW)",
+    "Solaire (MW)",
+    "Hydraulique (MW)",
+    "Bioénergies (MW)",
+]
+GREEN_COLS = ["Eolien (MW)", "Solaire (MW)", "Hydraulique (MW)", "Bioénergies (MW)"]
+
+# Liste contenant les mois dans l'ordre chronologique pour plotly
+MONTH_ORDER = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+]
+
+
+@st.cache_data(show_spinner="Préparation des données Eco2Mix...")
+def load_eco2mix_aggregates(filepath="datasets/df_modified.parquet"):
+    """
+    Lit uniquement les colonnes utiles du jeu Eco2Mix et renvoie les petites
+    tables agrégées dont les graphiques ont besoin.
+
+    Le jeu complet (1,9 million de lignes, environ 550 Mo en mémoire) n'est
+    jamais conservé : seul le résultat agrégé, de quelques centaines de lignes,
+    est mis en cache.
+    """
+    columns = [
+        "Région",
+        "Année",
+        "Heure",
+        "Consommation (MW)",
+        "Production (MW)",
+        "Ech. physiques (MW)",
+    ] + PROD_COLS
+    table = pq.read_table(
+        filepath, columns=columns, read_dictionary=["Région", "Heure"]
+    )
+    # self_destruct libère la mémoire Arrow au fil de la conversion
+    df = table.to_pandas(split_blocks=True, self_destruct=True)
+    del table
+
+    # Production par année et par filière (PF1, PF2)
+    prod_yearly = df.groupby("Année")[PROD_COLS].sum()
+
+    # Production verte par région (PF3, PF4)
+    green = df.groupby("Région", observed=True)[GREEN_COLS].sum().reset_index()
+    green["Région"] = green["Région"].astype(str)
+    green = green.sort_values("Région").reset_index(drop=True)
+
+    # Échanges physiques par région et par année (DF1), sans 2021
+    distrib = (
+        df.groupby(["Région", "Année"], observed=True)["Ech. physiques (MW)"]
+        .sum()
+        .reset_index()
+    )
+    distrib["Région"] = distrib["Région"].astype(str)
+    distrib = distrib[distrib["Année"] != 2021]
+    distrib = distrib.sort_values(["Région", "Année"]).reset_index(drop=True)
+
+    # Journée type par année (CF4)
+    df_daily = (
+        df.groupby(["Heure", "Année"], observed=True)["Consommation (MW)"]
+        .mean()
+        .reset_index()
+    )
+    df_daily["Heure"] = df_daily["Heure"].astype(str)
+    df_daily = df_daily.sort_values(["Heure", "Année"]).reset_index(drop=True)
+
+    # Production et consommation totales par région (PCF1)
+    consprod = (
+        df.groupby("Région", observed=True)[["Consommation (MW)", "Production (MW)"]]
+        .sum()
+        .reset_index()
+    )
+    consprod["Région"] = consprod["Région"].astype(str)
+    consprod = consprod.sort_values("Région").reset_index(drop=True)
+
+    return {
+        "prod_yearly": prod_yearly,
+        "green": green,
+        "distrib": distrib,
+        "df_daily": df_daily,
+        "consprod": consprod,
+    }
+
+
+@st.cache_data(show_spinner="Préparation des taux de charge...")
+def load_tco_tch_aggregates(filepath="datasets/tco_tch.parquet"):
+    """Moyennes mensuelles par région des taux de charge et de couverture."""
+    measures = ["TCH Solaire (%)", "TCH Eolien (%)", "TCO Nucléaire (%)"]
+    tco_tch = pq.read_table(filepath, columns=["Région", "Mois"] + measures).to_pandas()
+
+    grouped = {}
+    for measure in measures:
+        table = tco_tch.groupby(["Région", "Mois"])[measure].mean().reset_index()
+        table["Mois"] = pd.Categorical(
+            table["Mois"], categories=MONTH_ORDER, ordered=True
+        )
+        grouped[measure] = table.sort_values(by="Mois")
+    return grouped
+
+
+@st.cache_data
+def load_europe_data(filepath="datasets/EUROPE_DATA.csv"):
+    """Données Eurostat (petit fichier CSV)."""
+    return pd.read_csv(filepath, sep=",")
 
 
 def visualisation():
     "Contenu de la page de la page visualisation"
-    table = pq.read_table("datasets/df_modified.parquet")
-    df = table.to_pandas()
-
-    green = (
-        df.groupby(["Région"])[
-            ["Eolien (MW)", "Solaire (MW)", "Hydraulique (MW)", "Bioénergies (MW)"]
-        ]
-        .sum()
-        .reset_index()
-    )
+    aggregates = load_eco2mix_aggregates()
+    green = aggregates["green"]
+    EUROPE_DATA = load_europe_data()
 
     st.title("Analyses et visualisations")
 
-    # Création du DataFrame 'consommation'
-    @st.cache_data
-    def create_consommation_dataframe(df):
-        to_keep = [
-            "Région",
-            "Nature",
-            "Date",
-            "Heure",
-            "Date - Heure",
-            "Jour",
-            "Mois",
-            "Jour_mois",
-            "Année",
-            "Consommation (MW)",
-        ]
-        consommation = df[to_keep]
-        return consommation
-
-    consommation = create_consommation_dataframe(df)
-
-    # Création du DataFrame 'production'
-    @st.cache_data
-    def create_production_dataframe(df):
-        to_loose = ["Consommation (MW)"]
-        production = df.drop(to_loose, axis=1)
-        return production
-
-    production = create_production_dataframe(df)
-
-    @st.cache_data
-    def create_pf1_chart(df):
+    def create_pf1_chart(prod):
         # Notre première Data Viz PF1
-        # Regroupement de la production par année de toutes les énergies
-        prod = production.groupby(["Année"])[
-            [
-                "Thermique (MW)",
-                "Nucléaire (MW)",
-                "Eolien (MW)",
-                "Solaire (MW)",
-                "Hydraulique (MW)",
-                "Bioénergies (MW)",
-            ]
-        ].sum()
+        # Production par année de toutes les énergies (déjà agrégée)
 
         # Calcul de la production totale
         prod_total = prod.sum(axis=1)
@@ -128,12 +197,9 @@ def visualisation():
 
         return fig
 
-    @st.cache_data
-    def create_pf2_chart(df):
-        # Création d'un DataFrame regroupant la production verte/année
-        green_yearly = df.groupby(["Année"])[
-            ["Eolien (MW)", "Solaire (MW)", "Hydraulique (MW)", "Bioénergies (MW)"]
-        ].sum()
+    def create_pf2_chart(prod):
+        # Production verte par année (déjà agrégée)
+        green_yearly = prod[GREEN_COLS]
 
         # Reset the index to make 'Année' a regular column
         green_yearly = green_yearly.reset_index()
@@ -152,7 +218,6 @@ def visualisation():
 
         return fig
 
-    @st.cache_data
     def create_pf3_chart(df):
         # Création d'un DataFrame regroupant la production verte/région
 
@@ -186,7 +251,6 @@ def visualisation():
 
         # Création du DataFrame 'EUROPE_PROD'
 
-    @st.cache_data
     def create_prod_europe(df):
         EUROPE_PROD = EUROPE_DATA[EUROPE_DATA["Type"] == "Production"]
         return EUROPE_PROD
@@ -194,7 +258,6 @@ def visualisation():
     EUROPE_PROD = create_prod_europe(EUROPE_DATA)
 
     # Création du DatFrame 'EUROPE_CONS'
-    @st.cache_data
     def create_cons_europe(df):
         EUROPE_CONS = EUROPE_DATA[EUROPE_DATA["Type"] == "Consommation"]
         return EUROPE_CONS
@@ -245,19 +308,14 @@ def visualisation():
 
         return fig
 
-    # Variables pour df1 & df2
-    distrib_col = ["Région", "Année", "Ech. physiques (MW)"]
-    distrib = (
-        df[distrib_col]
-        .groupby(["Région", "Année"])["Ech. physiques (MW)"]
-        .sum()
-        .reset_index()
-    )
-    # On ne veux pas de 2021 dans cette étude
-    distrib = distrib[distrib["Année"] != 2021]
+    # Variables pour df1 & df2 (2021 est déjà exclue)
+    distrib = aggregates["distrib"]
 
     def create_df1_chart(distrib, region):
         try:
+            # Copie locale pour ne pas modifier le DataFrame mis en cache
+            distrib = distrib.copy()
+
             # Normalisation
             scaler = StandardScaler()
             distrib["Ech. physiques (MW)"] = scaler.fit_transform(
@@ -279,51 +337,10 @@ def visualisation():
             st.error(f"ERREURE: {e}")
 
     # TCO & TCH
-    # Liste contenant les mois dans l'ordre chronologique pour plotly
-    month_order = [
-        "January",
-        "February",
-        "March",
-        "April",
-        "May",
-        "June",
-        "July",
-        "August",
-        "September",
-        "October",
-        "November",
-        "December",
-    ]
-
-    tco_tch_table = pq.read_table("datasets/tco_tch.parquet")
-    tco_tch = tco_tch_table.to_pandas()
-
-    # Création d'un Dataframe groupé pour analyse des Taux de charge solaire
-    tco_tch_grouped_solaire = (
-        tco_tch.groupby(["Région", "Mois"])["TCH Solaire (%)"].mean().reset_index()
-    )
-    tco_tch_grouped_solaire["Mois"] = pd.Categorical(
-        tco_tch_grouped_solaire["Mois"], categories=month_order, ordered=True
-    )
-    tco_tch_grouped_solaire = tco_tch_grouped_solaire.sort_values(by="Mois")
-
-    # Création d'un Dataframe groupé pour analyse des Taux de charge éolien
-    tco_tch_grouped_eolien = (
-        tco_tch.groupby(["Région", "Mois"])["TCH Eolien (%)"].mean().reset_index()
-    )
-    tco_tch_grouped_eolien["Mois"] = pd.Categorical(
-        tco_tch_grouped_eolien["Mois"], categories=month_order, ordered=True
-    )
-    tco_tch_grouped_eolien = tco_tch_grouped_eolien.sort_values(by="Mois")
-
-    # Création d'un Dataframe groupé pour analyse des Taux de couverture nucléaire
-    tco_nuke = (
-        tco_tch.groupby(["Région", "Mois"])["TCO Nucléaire (%)"].mean().reset_index()
-    )
-    tco_nuke["Mois"] = pd.Categorical(
-        tco_nuke["Mois"], categories=month_order, ordered=True
-    )
-    tco_nuke = tco_nuke.sort_values(by="Mois")
+    tco_tch = load_tco_tch_aggregates()
+    tco_tch_grouped_solaire = tco_tch["TCH Solaire (%)"]
+    tco_tch_grouped_eolien = tco_tch["TCH Eolien (%)"]
+    tco_nuke = tco_tch["TCO Nucléaire (%)"]
 
     def create_tcf1_chart(df):
         fig = px.line(
@@ -379,10 +396,7 @@ def visualisation():
 
         return fig
 
-    daily_total_year = consommation.groupby(["Heure", "Année"])[
-        "Consommation (MW)"
-    ].mean()
-    df_daily = pd.DataFrame(daily_total_year).reset_index()
+    df_daily = aggregates["df_daily"]
 
     def create_cf4_chart(df):
         fig = px.line(
@@ -395,13 +409,8 @@ def visualisation():
         fig.update_layout(title="Consommation dans une journée type, par année")
         return fig
 
-    def create_pcf1_chart(df):
-        # Création d'un dataset qui reprends les deux données cibles pour chaque région
-        consprod = (
-            df.groupby(["Région"])[["Consommation (MW)", "Production (MW)"]]
-            .sum()
-            .reset_index()
-        )
+    def create_pcf1_chart(consprod):
+        # Production et consommation totales par région (déjà agrégées)
 
         # Création d'une visualisation Plotly scatter pour comparer les régions entre elles
         fig = px.scatter(
@@ -486,21 +495,21 @@ def visualisation():
     st.title("Production de l'énergie")
 
     # PF1
-    pf1_chart = create_pf1_chart(production)
+    pf1_chart = create_pf1_chart(aggregates["prod_yearly"])
     st.plotly_chart(pf1_chart)
     st.info(
         "Dépendance au nucléaire : Le graphique révèle que la France dépend largement de l'énergie nucléaire pour sa production d'électricité. Cette source d'énergie représente une part substantielle de la production totale, ce qui indique son importance dans le mix énergétique du pays. La France a historiquement investi massivement dans l'énergie nucléaire, ce qui lui a permis de disposer d'une source d'énergie fiable et à faible émission de carbone. Nous pourrons comparer cette stratégie au reste de l'Europe plus tard dans ce rapport."
     )
 
     # PF2
-    pf2_chart = create_pf2_chart(production)
+    pf2_chart = create_pf2_chart(aggregates["prod_yearly"])
     st.plotly_chart(pf2_chart)
     st.info(
         "Une tendance encourageante est l'augmentation de la part de l'énergie solaire et éolienne dans la production d'électricité au cours des dernières années. Cette croissance suggère que la France diversifie son mix énergétique en intégrant davantage d'énergies renouvelables. Les investissements dans le solaire et l'éolien reflètent une préoccupation croissante pour la réduction des émissions de gaz à effet de serre et la transition vers une production d'électricité plus propre et durable."
     )
 
     # PF3
-    pf3_chart = create_pf3_chart(production)
+    pf3_chart = create_pf3_chart(green)
     st.plotly_chart(pf3_chart)
     st.info(
         "Ce graphique illustre les disparités dans les capacités de production d'énergie verte entre les différentes régions de France. Il est clairement discernable que la région Auvergne Rhône-Alpes se distingue en tant que plus grande productrice, affichant une capacité hydraulique nettement supérieure aux autres régions. Elle est suivie de près par PACA, Occitanie et le Grand Est, ce sont les régions montagneuses Le Grand Est et les Hauts-de-France se démarquent particulièrement en termes de production d'énergie éolienne.​ Sans surprise, l'énergie solaire est principalement exploitée dans les régions du sud de la France. En ce qui concerne la bioénergie, elle est mise en œuvre dans toutes les régions, et nous étudierons cet aspect de manière plus détaillée dans l'un des prochains graphiques.​"
@@ -607,7 +616,7 @@ def visualisation():
 
     # CF4
 
-    cf4_chart = create_cf4_chart(consommation)
+    cf4_chart = create_cf4_chart(df_daily)
     st.plotly_chart(cf4_chart)
 
     # CF5 &/ou 6
@@ -628,7 +637,7 @@ def visualisation():
 
     st.title("Comparaison de la production et de la consommation de l'énergie")
 
-    pcf1_chart = create_pcf1_chart(df)
+    pcf1_chart = create_pcf1_chart(aggregates["consprod"])
     st.plotly_chart(pcf1_chart)
     st.write(
         "Ce graphique Scatterplot Plotly compare la production totale d'énergie ('Production (MW)') avec la consommation d'énergie ('Consommation (MW)') dans différentes régions. Il révèle que la région Auvergne-Rhône-Alpes est la principale productrice et consommatrice d'énergie. Le Grand Est est un bon producteur avec une consommation relativement plus faible. Le Centre-Val de Loire semble exporter de l'énergie, tandis que les régions Pays de la Loire, Bretagne et Bourgogne gèrent efficacement leur consommation. Enfin, l'Île-de-France se distingue par sa forte consommation et une contribution minimale à la production. Ce graphique met en lumière les disparités régionales en matière d'énergie."

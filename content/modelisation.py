@@ -7,7 +7,6 @@ import streamlit as st
 import joblib
 import numpy as np
 import pandas as pd
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 
 # Load the model and encoder
@@ -26,6 +25,10 @@ def load_encoder(filepath):
 # Load resources
 encoder = load_encoder("models/encoder.joblib")
 model = load_model("models/model_reglin.joblib")
+
+# Years seen by the encoder during training
+YEAR_INDEX = list(encoder.feature_names_in_).index("Année")
+KNOWN_YEARS = sorted(int(year) for year in encoder.categories_[YEAR_INDEX])
 
 
 def preprocess(user_input):
@@ -116,33 +119,6 @@ def get_user_input():
     return user_input
 
 
-def display_model_performance(y_true, y_pred):
-    """
-    Display the performance metrics of the model.
-
-    Args:
-        y_true (array-like): True target values.
-        y_pred (array-like): Predicted target values.
-    """
-    st.subheader("📊 Performances du modèle")
-    mae = mean_absolute_error(y_true, y_pred)
-    rmse = np.sqrt(mean_squared_error(y_true, y_pred))
-    r2 = r2_score(y_true, y_pred)
-
-    col1, col2, col3 = st.columns(3)
-    col1.metric("MAE (Mean Absolute Error)", f"{mae:.2f}")
-    col2.metric("RMSE (Root Mean Squared Error)", f"{rmse:.2f}")
-    col3.metric("R² (Coefficient de détermination)", f"{r2:.2f}")
-
-    st.info(
-        """
-        - **MAE** : Moyenne des erreurs absolues entre les valeurs prédites et réelles.
-        - **RMSE** : Racine carrée de la moyenne des erreurs quadratiques.
-        - **R²** : Proportion de la variance expliquée par le modèle (1 = parfait).
-        """
-    )
-
-
 def modelisation():
     """
     Main function to handle the "Modélisation" page.
@@ -174,12 +150,18 @@ def modelisation():
     # Divider
     st.divider()
 
-    # Example performance data (for illustration)
-    y_true_example = np.random.uniform(2000, 5000, 100)
-    y_pred_example = y_true_example + np.random.normal(0, 300, 100)
-
-    # Display model performance
-    display_model_performance(y_true_example, y_pred_example)
+    # Known limits of the current model
+    if user_input["Année"] not in KNOWN_YEARS:
+        st.warning(
+            f"Le modèle a été entraîné sur les années {KNOWN_YEARS[0]} à {KNOWN_YEARS[-1]}. "
+            f"L'année {user_input['Année']} n'est pas prise en compte dans la prédiction.",
+            icon="⚠️",
+        )
+    st.info(
+        "Les mesures de performance (MAE, RMSE, R²) seront affichées une fois le modèle "
+        "évalué sur un jeu de test dédié.",
+        icon="📊",
+    )
 
     # Divider
     st.divider()

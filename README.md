@@ -29,7 +29,7 @@
 
 ## 🔧 Installation
 
-To run the application locally, follow these steps. **Python 3.12 is required**: the pinned scikit-learn version (needed to load the saved models) has no prebuilt packages for Python 3.13.
+To run the application locally, follow these steps. The dependencies are tested with **Python 3.12**, the version used on Streamlit Community Cloud.
 
 ### 1. Clone the Repository
 

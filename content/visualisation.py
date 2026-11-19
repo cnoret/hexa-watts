@@ -55,21 +55,23 @@ GREEN_NAMES = [c.removesuffix(" (MW)") for c in GREEN_COLS]
 HEURES_PAR_PAS = 0.5
 MWH_PAR_TWH = 1_000_000
 
-# Liste contenant les mois dans l'ordre chronologique pour plotly
-MONTH_ORDER = [
-    "January",
-    "February",
-    "March",
-    "April",
-    "May",
-    "June",
-    "July",
-    "August",
-    "September",
-    "October",
-    "November",
-    "December",
-]
+# Les mois du fichier tco_tch sont en anglais : on les traduit, dans l'ordre
+# chronologique pour plotly
+MOIS_FR = {
+    "January": "Janvier",
+    "February": "Février",
+    "March": "Mars",
+    "April": "Avril",
+    "May": "Mai",
+    "June": "Juin",
+    "July": "Juillet",
+    "August": "Août",
+    "September": "Septembre",
+    "October": "Octobre",
+    "November": "Novembre",
+    "December": "Décembre",
+}
+MONTH_ORDER = list(MOIS_FR.values())
 
 
 def _en_twh(df, columns):
@@ -176,7 +178,7 @@ def load_tco_tch_aggregates(filepath="datasets/tco_tch.parquet"):
     for measure in measures:
         table = tco_tch.groupby(["Région", "Mois"])[measure].mean().reset_index()
         table["Mois"] = pd.Categorical(
-            table["Mois"], categories=MONTH_ORDER, ordered=True
+            table["Mois"].map(MOIS_FR), categories=MONTH_ORDER, ordered=True
         )
         grouped[measure] = table.sort_values(by="Mois")
 

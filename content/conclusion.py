@@ -76,7 +76,7 @@ def conclusion():
         try:
             st.image(
                 "images/africa_hydrogen.png",
-                use_container_width=True,
+                width="stretch",
             )
         except FileNotFoundError:
             st.warning("Image introuvable : vérifiez le chemin ou le fichier.")

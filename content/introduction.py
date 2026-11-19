@@ -21,7 +21,7 @@ def introduction():
                 "Centrale nucléaire de Saint Laurent des Eaux - "
                 "Photo : Sipa / Patrick SICCOLI"
             ),
-            use_container_width=True,
+            width="stretch",
         )
     except FileNotFoundError:
         # Show a warning if the image is not found

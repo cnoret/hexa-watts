@@ -53,8 +53,8 @@ def introduction():
         et gérer les différents équilibres énergétiques.
         """
     )
-    # Add an error note about the team's expertise
-    st.error(
+    # Add a note about the team's expertise
+    st.info(
         "Note : Nous nous insérons dans ce domaine sans connaissance réelle de l'énergie. "
         "Nous devrons acquérir des compétences spécifiques liées à la production d'électricité "
         "en France."

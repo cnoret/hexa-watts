@@ -31,6 +31,16 @@ YEAR_INDEX = list(encoder.feature_names_in_).index("Année")
 KNOWN_YEARS = sorted(int(year) for year in encoder.categories_[YEAR_INDEX])
 
 
+def default_date():
+    """Date du jour ramenée à la dernière année connue du modèle."""
+    today = datetime.date.today()
+    try:
+        return today.replace(year=KNOWN_YEARS[-1])
+    except ValueError:
+        # 29 février d'une année non bissextile
+        return today.replace(year=KNOWN_YEARS[-1], day=28)
+
+
 def preprocess(user_input):
     """
     Preprocess the user input for model prediction.
@@ -80,7 +90,7 @@ def get_user_input():
         )
 
         # Date selection
-        date = st.date_input("Date", value=datetime.date.today())
+        date = st.date_input("Date", value=default_date())
 
         # Temperature inputs
         st.markdown("### Températures (°C)")

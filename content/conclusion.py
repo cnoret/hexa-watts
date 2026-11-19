@@ -3,13 +3,11 @@ Creation of the "Conclusion" page for the Hexa Watts application
 """
 
 import streamlit as st
-from PIL import Image
 
-
-@st.cache_resource
-def load_image(filepath):
-    """Load and cache an image"""
-    return Image.open(filepath)
+# Les images sont passées à st.image par leur chemin : Streamlit lit le fichier
+# à chaque affichage. Un objet PIL mis en cache avec st.cache_resource serait
+# partagé entre les sessions, et deux lectures simultanées du même fichier
+# provoquent l'erreur « image file is truncated ».
 
 
 def conclusion():
@@ -17,7 +15,7 @@ def conclusion():
     # Title and Key Quote
     st.title("Conclusion")
     try:
-        st.image(load_image("images/sobriete.png"), width=300)
+        st.image("images/sobriete.png", width=300)
     except FileNotFoundError:
         st.warning("Image introuvable : veuillez vérifier le chemin du fichier.")
 
@@ -77,7 +75,7 @@ def conclusion():
     with col2:
         try:
             st.image(
-                load_image("images/africa_hydrogen.png"),
+                "images/africa_hydrogen.png",
                 use_container_width=True,
             )
         except FileNotFoundError:

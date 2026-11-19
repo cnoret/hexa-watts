@@ -1,6 +1,6 @@
 # Versions testées avec Python 3.12 (scikit-learn 1.3.x ne fournit pas de
-# paquets précompilés pour Python 3.13). Les modèles de models/ ont été
-# enregistrés avec scikit-learn 1.3 : ne pas changer de version mineure sans
+# paquets précompilés pour Python 3.13). Les modèles de models/ sont
+# enregistrés avec scikit-learn 1.3.2 : ne pas changer de version sans
 # les réentraîner.
 streamlit==1.40.2
 streamlit-option-menu==0.4.0

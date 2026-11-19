@@ -3,21 +3,18 @@ Creation of the "Introduction" page for the Hexa Watts application
 """
 
 import streamlit as st
-from PIL import Image
 
-
-# Cache for loading images
-@st.cache_resource
-def load_image(filepath):
-    """Load an image using PIL"""
-    return Image.open(filepath)
+# Les images sont passées à st.image par leur chemin : Streamlit lit le fichier
+# à chaque affichage. Un objet PIL mis en cache avec st.cache_resource serait
+# partagé entre les sessions, et deux lectures simultanées du même fichier
+# provoquent l'erreur « image file is truncated ».
 
 
 def introduction():
     """Content of the introduction page"""
     try:
         # Load and display the main image
-        image_top = load_image("images/nucleaire.jpeg")
+        image_top = "images/nucleaire.jpeg"
         st.image(
             image_top,
             caption=(

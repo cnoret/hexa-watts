@@ -111,7 +111,7 @@ with st.sidebar:
         """
     <hr>
     <p style='font-size: 14px; text-align: center;'>
-        <strong>Refonte (Hexa Watts)</strong> réalisée par :  
+        <strong>Refonte (Hexa Watts)</strong> réalisée par :
         <span style='font-weight: bold;'>Christophe NORET</span>
     </p>
     """,

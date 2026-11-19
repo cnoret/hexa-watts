@@ -34,22 +34,22 @@ def introduction():
     st.subheader("Contexte")
     st.markdown(
         """
-        La problématique de notre projet consiste à **comprendre et à anticiper le phasage** entre 
-        la consommation et la production énergétique au niveau national et régional afin d'observer, 
+        La problématique de notre projet consiste à **comprendre et à anticiper le phasage** entre
+        la consommation et la production énergétique au niveau national et régional afin d'observer,
         analyser et prédire des déséquilibres importants entre l'offre et la demande.
 
         Dans cette analyse, nous allons nous poser plusieurs questions :
         - Comment identifier et analyser les variations de consommation au niveau régional ?
         - Comment évaluer la production des différentes filières énergétiques ?
-        - Comment les énergies renouvelables sont-elles réparties géographiquement et quel impact 
+        - Comment les énergies renouvelables sont-elles réparties géographiquement et quel impact
           ont-elles ?
         - Pouvons-nous prédire la consommation future afin d'éviter un black-out ?
 
-        En répondant à ces questions, nous pourrons prévoir précisément les futurs besoins 
-        énergétiques et anticiper les périodes à risques, permettant de prendre des mesures 
+        En répondant à ces questions, nous pourrons prévoir précisément les futurs besoins
+        énergétiques et anticiper les périodes à risques, permettant de prendre des mesures
         préventives sur le réseau électrique.
 
-        Notre projet vise donc à exploiter certaines données spécifiques afin de mieux comprendre 
+        Notre projet vise donc à exploiter certaines données spécifiques afin de mieux comprendre
         et gérer les différents équilibres énergétiques.
         """
     )
@@ -64,11 +64,11 @@ def introduction():
     st.subheader("Objectifs de l'analyse")
     st.markdown(
         """
-        - Analyser les données de consommation électrique afin d'identifier des tendances et 
+        - Analyser les données de consommation électrique afin d'identifier des tendances et
           des schémas de consommation.
         - Analyser et comparer les différentes filières de production (Nucléaire/Renouvelable).
         - Visualiser la localisation et la capacité de production des énergies renouvelables.
-        - Développer des modèles prédictifs permettant d'estimer les consommations futures afin 
+        - Développer des modèles prédictifs permettant d'estimer les consommations futures afin
           d'anticiper les périodes à risque.
         """
     )

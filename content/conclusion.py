@@ -95,7 +95,7 @@ def conclusion():
 
     st.info(
         """
-        **Conclusion finale** : La sobriété énergétique, combinée à des avancées technologiques, 
+        **Conclusion finale** : La sobriété énergétique, combinée à des avancées technologiques,
         une gestion stratégique et une coopération internationale, est essentielle pour relever les défis énergétiques de demain.
         """,
         icon="🌟",

@@ -1,0 +1,12 @@
+# Contrôle du style et des erreurs courantes, lancé par le workflow Tests.
+# Usage : ruff check .
+target-version = "py312"
+
+[lint]
+select = ["E", "F", "W", "B"]
+# Les longs textes affichés dans les pages dépassent souvent 88 caractères
+ignore = ["E501"]
+
+[lint.per-file-ignores]
+# os.environ et st.set_page_config doivent précéder ces imports
+"streamlit_app.py" = ["E402"]

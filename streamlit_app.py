@@ -12,7 +12,6 @@ os.environ.setdefault("ARROW_DEFAULT_MEMORY_POOL", "system")
 # External libraries
 import streamlit as st
 from streamlit_option_menu import option_menu
-from PIL import Image
 
 # Page configuration
 st.set_page_config(
@@ -46,8 +45,7 @@ with st.sidebar:
 
     # Image in the sidebar
     try:
-        image_side = Image.open("images/triangle.png")
-        st.image(image_side)
+        st.image("images/triangle.png")
     except FileNotFoundError:
         st.warning("L'image de la sidebar n'a pas été trouvée.")
 

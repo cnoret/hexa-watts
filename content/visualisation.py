@@ -8,7 +8,10 @@ import plotly.graph_objects as go
 import plotly.express as px
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler
+import pyarrow.compute as pc
 import pyarrow.parquet as pq
+
+from content.memoire import liberer_memoire
 
 
 # Color scheme qu'on va utiliser pour les grafs
@@ -63,6 +66,28 @@ MONTH_ORDER = [
 ]
 
 
+def _aggregate(table, keys, columns, how="sum"):
+    """
+    Agrège une table Arrow par `keys` et renvoie un petit DataFrame trié.
+
+    Le calcul reste dans Arrow : on évite ainsi de convertir 1,9 million de
+    lignes en DataFrame pandas, ce qui doublait le pic de mémoire.
+    """
+    # min_count=0 : une somme sans valeur vaut 0, comme avec pandas
+    options = pc.ScalarAggregateOptions(min_count=0) if how == "sum" else None
+    grouped = table.group_by(keys, use_threads=False).aggregate(
+        [(column, how, options) for column in columns]
+    )
+    grouped = grouped.rename_columns(
+        [name.removesuffix(f"_{how}") for name in grouped.column_names]
+    )
+    return (
+        grouped.to_pandas()[list(keys) + list(columns)]
+        .sort_values(list(keys))
+        .reset_index(drop=True)
+    )
+
+
 @st.cache_data(show_spinner="Préparation des données Eco2Mix...")
 def load_eco2mix_aggregates(filepath="datasets/df_modified.parquet"):
     """
@@ -81,48 +106,28 @@ def load_eco2mix_aggregates(filepath="datasets/df_modified.parquet"):
         "Production (MW)",
         "Ech. physiques (MW)",
     ] + PROD_COLS
-    table = pq.read_table(
-        filepath, columns=columns, read_dictionary=["Région", "Heure"]
-    )
-    # self_destruct libère la mémoire Arrow au fil de la conversion
-    df = table.to_pandas(split_blocks=True, self_destruct=True)
-    del table
+    table = pq.read_table(filepath, columns=columns)
 
     # Production par année et par filière (PF1, PF2)
-    prod_yearly = df.groupby("Année")[PROD_COLS].sum()
+    prod_yearly = _aggregate(table, ["Année"], PROD_COLS).set_index("Année")
 
     # Production verte par région (PF3, PF4)
-    green = df.groupby("Région", observed=True)[GREEN_COLS].sum().reset_index()
-    green["Région"] = green["Région"].astype(str)
-    green = green.sort_values("Région").reset_index(drop=True)
+    green = _aggregate(table, ["Région"], GREEN_COLS)
 
     # Échanges physiques par région et par année (DF1), sans 2021
-    distrib = (
-        df.groupby(["Région", "Année"], observed=True)["Ech. physiques (MW)"]
-        .sum()
-        .reset_index()
-    )
-    distrib["Région"] = distrib["Région"].astype(str)
-    distrib = distrib[distrib["Année"] != 2021]
-    distrib = distrib.sort_values(["Région", "Année"]).reset_index(drop=True)
+    distrib = _aggregate(table, ["Région", "Année"], ["Ech. physiques (MW)"])
+    distrib = distrib[distrib["Année"] != 2021].reset_index(drop=True)
 
     # Journée type par année (CF4)
-    df_daily = (
-        df.groupby(["Heure", "Année"], observed=True)["Consommation (MW)"]
-        .mean()
-        .reset_index()
-    )
-    df_daily["Heure"] = df_daily["Heure"].astype(str)
-    df_daily = df_daily.sort_values(["Heure", "Année"]).reset_index(drop=True)
+    df_daily = _aggregate(table, ["Heure", "Année"], ["Consommation (MW)"], "mean")
 
     # Production et consommation totales par région (PCF1)
-    consprod = (
-        df.groupby("Région", observed=True)[["Consommation (MW)", "Production (MW)"]]
-        .sum()
-        .reset_index()
+    consprod = _aggregate(
+        table, ["Région"], ["Consommation (MW)", "Production (MW)"]
     )
-    consprod["Région"] = consprod["Région"].astype(str)
-    consprod = consprod.sort_values("Région").reset_index(drop=True)
+
+    del table
+    liberer_memoire()
 
     return {
         "prod_yearly": prod_yearly,
@@ -146,6 +151,9 @@ def load_tco_tch_aggregates(filepath="datasets/tco_tch.parquet"):
             table["Mois"], categories=MONTH_ORDER, ordered=True
         )
         grouped[measure] = table.sort_values(by="Mois")
+
+    del tco_tch
+    liberer_memoire()
     return grouped
 
 

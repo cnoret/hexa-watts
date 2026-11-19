@@ -29,19 +29,19 @@
 
 ## 🔧 Installation
 
-To run the application locally, follow these steps:
+To run the application locally, follow these steps. **Python 3.12 is required**: the pinned scikit-learn version (needed to load the saved models) has no prebuilt packages for Python 3.13.
 
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/your-username/energie-france.git
-cd energie-france
+git clone https://github.com/cnoret/hexa-watts.git
+cd hexa-watts
 ```
 
 ### 2. Create a Virtual Environment
 
 ```bash
-python -m venv venv
+python3.12 -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 ```
 
@@ -59,10 +59,22 @@ streamlit run streamlit_app.py
 
 ---
 
+## ☁️ Deployment (Streamlit Community Cloud)
+
+1. Sign in at [share.streamlit.io](https://share.streamlit.io) with the GitHub account that owns the repository.
+2. Click **Create app**, then **Deploy a public app from GitHub**.
+3. Repository `cnoret/hexa-watts`, branch `main`, main file path `streamlit_app.py`.
+4. Open **Advanced settings** and select **Python 3.12**. This cannot be changed after deployment without deleting and redeploying the app.
+5. Click **Deploy**. The first build takes a few minutes; the data files (about 95 MB) are part of the repository, so nothing else needs to be uploaded.
+
+The app stays under about 700 MB of RAM: the large Parquet files are aggregated on load and only small summary tables are cached.
+
+---
+
 ## 📂 Project Structure
 
 ```
-energie-france/
+hexa-watts/
 ├── datasets/                # Data files used for analysis and predictions
 ├── models/                  # Pre-trained ML models (e.g., Linear Regression)
 ├── content/                 # Modular Streamlit pages (e.g., Introduction, Visualizations)

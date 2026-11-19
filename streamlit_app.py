@@ -2,6 +2,13 @@
 Streamlit Start
 """
 
+import os
+
+# Doit être défini avant le premier import de pyarrow : l'allocateur système
+# rend la mémoire libérée, contrairement à celui d'Arrow par défaut. Cela
+# compte sur Streamlit Community Cloud, où la mémoire est limitée.
+os.environ.setdefault("ARROW_DEFAULT_MEMORY_POOL", "system")
+
 # External libraries
 import streamlit as st
 from streamlit_option_menu import option_menu

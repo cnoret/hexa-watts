@@ -1,6 +1,7 @@
 # Dernières versions disponibles en novembre 2026, testées avec Python 3.12.
-# Les modèles de models/ sont enregistrés avec scikit-learn 1.9.1 : après un
-# changement de version de scikit-learn, vérifier qu'ils se chargent encore.
+# Le modèle de models/ est enregistré avec scikit-learn 1.9.1 : après un
+# changement de version de scikit-learn, le réentraîner avec
+# python scripts/entrainer_modele.py.
 streamlit==1.67.0
 streamlit-option-menu==0.4.0
 pandas==3.1.1

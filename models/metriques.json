@@ -1,0 +1,104 @@
+{
+  "modele": "HistGradientBoostingRegressor",
+  "scikit_learn": "1.9.1",
+  "variables": [
+    "Région",
+    "TMin (°C)",
+    "TMoy (°C)",
+    "TMax (°C)",
+    "Heure",
+    "Jour_semaine",
+    "Ferie",
+    "sin_jour_annee",
+    "cos_jour_annee",
+    "Année"
+  ],
+  "periode_apprentissage": [
+    "2016-01-01",
+    "2020-10-31"
+  ],
+  "periode_test": [
+    "2020-11-01",
+    "2021-10-31"
+  ],
+  "lignes_apprentissage": 1017216,
+  "lignes_test": 209664,
+  "annees": [
+    2016,
+    2020
+  ],
+  "test": {
+    "mae": 243.06868705191573,
+    "rmse": 357.40331007980336,
+    "r2": 0.9697120172313715,
+    "mape": 0.055135025349252
+  },
+  "reference_profil_moyen": {
+    "mae": 326.1131951873221,
+    "rmse": 490.774547989637,
+    "r2": 0.9428893277566349,
+    "mape": 0.0729356754185623
+  },
+  "par_region": {
+    "Auvergne-Rhône-Alpes": {
+      "mae": 382.8649475499013,
+      "mape": 0.051750051586721794
+    },
+    "Bourgogne-Franche-Comté": {
+      "mae": 149.78634562216502,
+      "mape": 0.061948360997688356
+    },
+    "Bretagne": {
+      "mae": 155.25236583778977,
+      "mape": 0.057220042180367116
+    },
+    "Centre-Val de Loire": {
+      "mae": 135.05257728092676,
+      "mape": 0.06253586982760005
+    },
+    "Grand Est": {
+      "mae": 276.9430380759194,
+      "mape": 0.05386550250438297
+    },
+    "Hauts-de-France": {
+      "mae": 290.7238080627199,
+      "mape": 0.05080868348673639
+    },
+    "Normandie": {
+      "mae": 167.82372550492997,
+      "mape": 0.052317690924877376
+    },
+    "Nouvelle-Aquitaine": {
+      "mae": 243.1100545840758,
+      "mape": 0.049586341943280696
+    },
+    "Occitanie": {
+      "mae": 227.39631439412923,
+      "mape": 0.05172968372247803
+    },
+    "Pays de la Loire": {
+      "mae": 167.2162433197637,
+      "mape": 0.05491853265889146
+    },
+    "Provence-Alpes-Côte d'Azur": {
+      "mae": 247.41209390543492,
+      "mape": 0.05415655962372983
+    },
+    "Île-de-France": {
+      "mae": 473.242730485233,
+      "mape": 0.06078298473426994
+    }
+  },
+  "importance_mae_mw": {
+    "Région": 1751.611470071782,
+    "TMin (°C)": 18.284772269774425,
+    "TMoy (°C)": 170.0142123746122,
+    "TMax (°C)": 60.99594405442125,
+    "Heure": 262.01331633307433,
+    "Jour_semaine": 128.26431777350624,
+    "Ferie": 9.567061805303704,
+    "sin_jour_annee": 44.595098452421475,
+    "cos_jour_annee": 344.86996899036984,
+    "Année": 0.0
+  }
+}

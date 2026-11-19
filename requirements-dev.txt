@@ -1,0 +1,3 @@
+# Dépendances de l'application, plus les outils de test.
+-r requirements.txt
+pytest==9.2.0

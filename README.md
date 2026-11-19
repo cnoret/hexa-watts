@@ -63,10 +63,11 @@ streamlit run streamlit_app.py
 
 ```bash
 pip install -r requirements-dev.txt
+ruff check .
 python -m pytest
 ```
 
-The tests (about 20 seconds) check that the seven pages run without exceptions, that the prediction works and reacts to temperature, and that the pinned dependencies install without conflicts. GitHub Actions runs them on every push and pull request (`.github/workflows/tests.yml`).
+The tests (about 20 seconds) check that the seven pages run without exceptions, that the prediction works and reacts to temperature, and that the pinned dependencies install without conflicts. GitHub Actions runs them, along with `ruff check`, on every push and pull request (`.github/workflows/tests.yml`). Dependabot proposes dependency updates once a month (`.github/dependabot.yml`).
 
 ---
 
@@ -76,7 +77,7 @@ The tests (about 20 seconds) check that the seven pages run without exceptions, 
 2. Click **Create app**, then **Deploy a public app from GitHub**.
 3. Repository `cnoret/hexa-watts`, branch `main`, main file path `streamlit_app.py`.
 4. Open **Advanced settings** and select **Python 3.12**. This cannot be changed after deployment without deleting and redeploying the app.
-5. Click **Deploy**. The first build takes a few minutes; the data files (about 95 MB) are part of the repository, so nothing else needs to be uploaded.
+5. Click **Deploy**. The first build takes a few minutes; the data files (about 93 MB) are part of the repository, so nothing else needs to be uploaded.
 
 The app stays under about 700 MB of RAM: the large Parquet files are aggregated on load and only small summary tables are cached.
 

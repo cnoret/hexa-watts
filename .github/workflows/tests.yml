@@ -36,5 +36,8 @@ jobs:
       - name: Vérifier l'absence de conflit entre dépendances
         run: pip check
 
+      - name: Vérifier le style du code
+        run: ruff check --output-format github .
+
       - name: Lancer les tests
         run: python -m pytest

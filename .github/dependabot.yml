@@ -1,0 +1,15 @@
+# Propose chaque mois une PR par dépendance à mettre à jour.
+# Après une mise à jour de scikit-learn, réentraîner le modèle
+# avec python scripts/entrainer_modele.py.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

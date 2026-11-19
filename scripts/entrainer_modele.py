@@ -163,7 +163,7 @@ def main():
         "par_region": par_region,
         "importance_mae_mw": {
             nom: float(valeur)
-            for nom, valeur in zip(COLONNES, importance.importances_mean)
+            for nom, valeur in zip(COLONNES, importance.importances_mean, strict=True)
         },
     }
     with open(RACINE / "models/metriques.json", "w", encoding="utf-8") as f:

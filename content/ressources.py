@@ -17,7 +17,7 @@ def ressources():
     )
     st.markdown(
         """
-        - **[eco2mix-regional-cons-def](https://odre.opendatasoft.com/explore/dataset/eco2mix-regional-cons-def)** : Consommation énergétique des régions (janvier 2013 à mai 2022).
+        - **[eco2mix-regional-cons-def](https://odre.opendatasoft.com/explore/dataset/eco2mix-regional-cons-def)** : Consommation énergétique des régions (janvier 2013 à décembre 2021).
         - **[INSEE Statistiques](https://www.insee.fr/fr/statistiques)** : Population Française par région.
         - **[Météo France](https://donneespubliques.meteofrance.fr)** : Températures régionales.
         - **[Eurostat](https://ec.europa.eu/eurostat/fr)** : Bilans énergétiques en Europe.
@@ -35,11 +35,9 @@ def ressources():
         Les bibliothèques suivantes ont été utilisées dans ce projet :
         - **[Pandas](https://pandas.pydata.org/)** : Manipulation et analyse des données.
         - **[Matplotlib](https://matplotlib.org/)** : Visualisations statiques, animées et interactives.
-        - **[Seaborn](https://seaborn.pydata.org/)** : Graphiques statistiques attrayants.
         - **[Plotly](https://plotly.com/python/)** : Visualisations interactives et dynamiques.
         - **[Scikit-Learn](https://scikit-learn.org/stable/)** : Préparation des données et modélisation prédictive.
         - **[Streamlit](https://streamlit.io/)** : Transformation des scripts Python en applications web.
-        - **[Geopandas](https://geopandas.org/en/stable/)** : Manipulation et visualisation de données géospatiales.
         """
     )
 

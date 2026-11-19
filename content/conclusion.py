@@ -32,7 +32,7 @@ def conclusion():
     st.subheader("⚡ Les défis à relever pour 2050")
     st.markdown(
         """
-        - **Décarbonisation** des sources d'énergie.
+        - **Décarbonation** des sources d'énergie.
         - **Avancées technologiques**, notamment dans le stockage d'énergie via des batteries. [Voir projet RINGO](https://www.rte-france.com/projets/stockage-electricite-ringo)
         - **Sensibilisation accrue** des citoyens et des entreprises aux enjeux énergétiques.
         - **Décisions stratégiques** du gouvernement pour une transition réfléchie.
@@ -95,7 +95,7 @@ def conclusion():
 
     st.info(
         """
-        **Conclusion finale** : La sobriété énergétique, combinée à des avancées technologiques, 
+        **Conclusion finale** : La sobriété énergétique, combinée à des avancées technologiques,
         une gestion stratégique et une coopération internationale, est essentielle pour relever les défis énergétiques de demain.
         """,
         icon="🌟",

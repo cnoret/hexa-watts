@@ -59,6 +59,15 @@ pip install -r requirements.txt
 streamlit run streamlit_app.py
 ```
 
+### 5. Run the Tests
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest
+```
+
+The tests (about 20 seconds) check that the seven pages run without exceptions, that the prediction works and reacts to temperature, and that the pinned dependencies install without conflicts. GitHub Actions runs them on every push and pull request (`.github/workflows/tests.yml`).
+
 ---
 
 ## ☁️ Deployment (Streamlit Community Cloud)
@@ -82,8 +91,10 @@ hexa-watts/
 ├── content/                 # Modular Streamlit pages (e.g., Introduction, Visualizations)
 ├── images/                  # Image assets for the application
 ├── scripts/                 # Model training script
+├── tests/                   # Automated tests (pytest and Streamlit AppTest)
 ├── streamlit_app.py         # Main application entry point
 ├── requirements.txt         # Dependencies for the project
+├── requirements-dev.txt     # Dependencies plus test tools
 └── README.md                # Project documentation
 ```
 

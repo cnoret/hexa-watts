@@ -17,7 +17,9 @@
 
 2. **Machine Learning**:
    - Predicts electricity consumption (in MW) based on region, date, time, and temperature data.
-   - Linear Regression model trained on historical data.
+   - Gradient boosting model (`HistGradientBoostingRegressor`) trained on half-hourly regional consumption joined with daily regional temperatures (2016 to 2021).
+   - Evaluated on the last twelve months of data (November 2020 to October 2021), which the model never sees during training. The app shows these test metrics (MAE, RMSE, R², relative error) next to a naive baseline.
+   - Retrain with `python scripts/entrainer_modele.py`: it rewrites `models/modele_consommation.joblib` and `models/metriques.json`.
 
 3. **Data Sources**:
    - French energy consumption data: **RTE eco2mix**.
@@ -76,9 +78,10 @@ The app stays under about 700 MB of RAM: the large Parquet files are aggregated 
 ```
 hexa-watts/
 ├── datasets/                # Data files used for analysis and predictions
-├── models/                  # Pre-trained ML models (e.g., Linear Regression)
+├── models/                  # Trained prediction model and its test metrics
 ├── content/                 # Modular Streamlit pages (e.g., Introduction, Visualizations)
 ├── images/                  # Image assets for the application
+├── scripts/                 # Model training script
 ├── streamlit_app.py         # Main application entry point
 ├── requirements.txt         # Dependencies for the project
 └── README.md                # Project documentation

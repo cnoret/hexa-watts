@@ -10,33 +10,13 @@ import matplotlib.pyplot as plt
 import pyarrow.compute as pc
 import pyarrow.parquet as pq
 
+from content.couleurs import COULEURS_EUROPE, COULEURS_FILIERES
 from content.memoire import liberer_memoire
 
 
-# Couleurs des filières pour les graphiques
-colors = {
-    "Thermique": "red",
-    "Nucléaire": "#F7E237",
-    "Eolien": "lightblue",
-    "Solaire": "orange",
-    "Hydraulique": "darkblue",
-    "Bioénergies": "green",
-}
-
-# Pour les données Europe aussi
-colors_euro = {
-    "Bioénergie": "#FF0000",  # Rouge
-    "Déchets municipaux renouvelables": "#00FF00",  # Vert
-    "Éolien": "#ADD8E6",  # Bleu clair
-    "Solaire Photovoltaique": "#FFA500",  # Orange
-    "Solaire Thermique": "#FFFF00",  # Jaune
-    "Hydraulique": "#00008B",  # Bleu foncé
-    "Biogaz": "#808080",  # Gris
-    "Biocarburants": "#800080",  # Violet
-    "Pompe à chaleur": "#E377C2",  # Rose (le rouge est déjà pris par la bioénergie)
-    "Océan": "#0000FF",  # Bleu
-    "Geothermique": "#D076FF",  # Violet
-}
+# Couleurs des filières (partagées avec la page Préparation)
+colors = COULEURS_FILIERES
+colors_euro = COULEURS_EUROPE
 
 PROD_COLS = [
     "Thermique (MW)",
@@ -72,6 +52,37 @@ MOIS_FR = {
     "December": "Décembre",
 }
 MONTH_ORDER = list(MOIS_FR.values())
+
+JOURS_FR = {
+    "Monday": "Lundi",
+    "Tuesday": "Mardi",
+    "Wednesday": "Mercredi",
+    "Thursday": "Jeudi",
+    "Friday": "Vendredi",
+    "Saturday": "Samedi",
+    "Sunday": "Dimanche",
+}
+JOUR_ORDER = list(JOURS_FR.values())
+
+# Tranches horaires du graphique CF3 : (libellé, heure de début, heure de fin)
+PERIODES = [
+    ("Nuit (22 h - 6 h)", 22, 6),
+    ("Matin (6 h - 9 h)", 6, 9),
+    ("Fin de matinée (9 h - 12 h)", 9, 12),
+    ("Midi (12 h - 14 h)", 12, 14),
+    ("Après-midi (14 h - 17 h)", 14, 17),
+    ("Soirée (17 h - 22 h)", 17, 22),
+]
+NB_REGIONS = 12
+
+
+def _periode(heure):
+    """Tranche horaire d'une heure « HH:MM »."""
+    h = int(heure[:2])
+    for libelle, debut, fin in PERIODES:
+        if (debut <= h < fin) if debut < fin else (h >= debut or h < fin):
+            return libelle
+    raise ValueError(heure)
 
 
 def _en_twh(df, columns):
@@ -119,6 +130,8 @@ def load_eco2mix_aggregates(filepath="datasets/df_modified.parquet"):
     columns = [
         "Région",
         "Année",
+        "Mois",
+        "Jour",
         "Heure",
         "Consommation (MW)",
         "Production (MW)",
@@ -149,6 +162,40 @@ def load_eco2mix_aggregates(filepath="datasets/df_modified.parquet"):
     # Journée type par année (CF4)
     df_daily = _aggregate(table, ["Heure", "Année"], ["Consommation (MW)"], "mean")
 
+    # Consommation par région et par année (CF1)
+    cons_yearly = _en_twh(
+        _aggregate(table, ["Région", "Année"], ["Consommation (MW)"]),
+        ["Consommation (MW)"],
+    )
+
+    # Consommation par mois, en moyenne sur les années étudiées (CF2)
+    nb_annees = len(pc.unique(table["Année"]))
+    cons_monthly = _en_twh(
+        _aggregate(table, ["Mois"], ["Consommation (MW)"]), ["Consommation (MW)"]
+    )
+    cons_monthly["Consommation"] /= nb_annees
+    cons_monthly["Mois"] = pd.Categorical(
+        cons_monthly["Mois"].map(MOIS_FR), categories=MONTH_ORDER, ordered=True
+    )
+    cons_monthly = cons_monthly.sort_values("Mois").reset_index(drop=True)
+
+    # Puissance moyenne appelée en France par jour et tranche horaire (CF3).
+    # Chaque demi-heure compte une ligne par région : la moyenne d'une ligne
+    # multipliée par le nombre de régions donne la consommation nationale.
+    weekly = _aggregate(table, ["Jour", "Heure"], ["Consommation (MW)"], "mean")
+    weekly["Période"] = weekly["Heure"].map(_periode)
+    weekly = (
+        weekly.groupby(["Jour", "Période"])["Consommation (MW)"].mean()
+        * NB_REGIONS / 1000
+    ).rename("Consommation (GW)").reset_index()
+    weekly["Jour"] = pd.Categorical(
+        weekly["Jour"].map(JOURS_FR), categories=JOUR_ORDER, ordered=True
+    )
+    weekly["Période"] = pd.Categorical(
+        weekly["Période"], categories=[p[0] for p in PERIODES], ordered=True
+    )
+    weekly = weekly.sort_values(["Période", "Jour"]).reset_index(drop=True)
+
     # Production et consommation totales par région (PCF1)
     consprod = _en_twh(
         _aggregate(table, ["Région"], ["Consommation (MW)", "Production (MW)"]),
@@ -165,6 +212,9 @@ def load_eco2mix_aggregates(filepath="datasets/df_modified.parquet"):
         "distrib": distrib,
         "df_daily": df_daily,
         "consprod": consprod,
+        "cons_yearly": cons_yearly,
+        "cons_monthly": cons_monthly,
+        "weekly": weekly,
     }
 
 
@@ -312,15 +362,13 @@ def visualisation():
     # Création du DataFrame 'EUROPE_PROD'
 
     def create_prod_europe(df):
-        EUROPE_PROD = EUROPE_DATA[EUROPE_DATA["Type"] == "Production"]
-        return EUROPE_PROD
+        return df[df["Type"] == "Production"]
 
     EUROPE_PROD = create_prod_europe(EUROPE_DATA)
 
     # Création du DatFrame 'EUROPE_CONS'
     def create_cons_europe(df):
-        EUROPE_CONS = EUROPE_DATA[EUROPE_DATA["Type"] == "Consommation"]
-        return EUROPE_CONS
+        return df[df["Type"] == "Consommation"]
 
     EUROPE_CONS = create_cons_europe(EUROPE_DATA)
 
@@ -461,6 +509,55 @@ def visualisation():
         fig.update_layout(title="Consommation dans une journée type, par année")
         return fig
 
+    def create_cf1_chart(cons_yearly):
+        fig = px.line(
+            cons_yearly,
+            x="Année",
+            y="Consommation",
+            color="Région",
+            markers=True,
+            title="Consommation d'électricité par région et par année",
+            labels={"Consommation": "Consommation (TWh)"},
+            # 12 régions : la palette par défaut n'a que 10 couleurs
+            color_discrete_sequence=px.colors.qualitative.Dark24,
+            category_orders={
+                "Région": cons_yearly.groupby("Région")["Consommation"]
+                .sum()
+                .sort_values(ascending=False)
+                .index.tolist()
+            },
+        )
+        fig.update_layout(height=500)
+        return fig
+
+    def create_cf2_chart(cons_monthly):
+        fig = px.bar(
+            cons_monthly,
+            x="Mois",
+            y="Consommation",
+            title="Consommation d'électricité en France par mois (moyenne de 2013 à 2021)",
+            labels={"Consommation": "Consommation (TWh)"},
+            color="Consommation",
+            color_continuous_scale="OrRd",
+        )
+        fig.update_layout(coloraxis_showscale=False)
+        return fig
+
+    def create_cf3_chart(weekly):
+        fig = px.line(
+            weekly,
+            x="Jour",
+            y="Consommation (GW)",
+            color="Période",
+            markers=True,
+            title="Consommation moyenne en France selon le jour et le moment de la journée",
+            labels={
+                "Jour": "Jour de la semaine",
+                "Consommation (GW)": "Puissance moyenne appelée (GW)",
+            },
+        )
+        return fig
+
     def create_pcf1_chart(consprod):
         # Production et consommation totales par région (déjà agrégées)
 
@@ -489,7 +586,7 @@ def visualisation():
 
     def create_ce3_chart(df):
         EUROPE_CONS_TYPE = (
-            EUROPE_CONS.groupby(["Pays", "Class"])["Énergie (TWh)"].sum().reset_index()
+            df.groupby(["Pays", "Class"])["Énergie (TWh)"].sum().reset_index()
         )
 
         fig = px.bar(
@@ -497,8 +594,19 @@ def visualisation():
             x="Pays",
             y="Énergie (TWh)",
             color="Class",
-            labels={"Énergie (TWh)": "Consommation cumulée (TWh)", "Pays": "Pays"},
+            labels={
+                "Énergie (TWh)": "Consommation cumulée (TWh)",
+                "Pays": "Pays",
+                "Class": "Classification",
+            },
             title="Consommation d'énergies renouvelables par pays, cumulée de 2013 à 2021",
+            # Pays du plus gros au plus petit consommateur
+            category_orders={
+                "Pays": EUROPE_CONS_TYPE.groupby("Pays")["Énergie (TWh)"]
+                .sum()
+                .sort_values(ascending=False)
+                .index.tolist()
+            },
         )
 
         for classification, color in colors_euro.items():
@@ -512,7 +620,7 @@ def visualisation():
 
         # Grouper les données par "Classification" et "Année" et calculer la somme de la consommation
         euro_yearly = (
-            EUROPE_CONS.groupby(["Class", "Année"])["Énergie (TWh)"].sum().unstack()
+            df.groupby(["Class", "Année"])["Énergie (TWh)"].sum().unstack()
         )
 
         euro_yearly = euro_yearly.transpose()
@@ -647,35 +755,18 @@ def visualisation():
 
     st.title("Consommation de l'énergie")
     # CF1
-    st.image("images/CF1.png")
-    st.write("")
+    st.plotly_chart(create_cf1_chart(aggregates["cons_yearly"]))
 
     # CF2
-    st.image("images/CF2.png")
-    st.write("")
+    st.plotly_chart(create_cf2_chart(aggregates["cons_monthly"]))
 
     # CF3
-    st.image("images/CF3.png")
-    st.write("")
+    st.plotly_chart(create_cf3_chart(aggregates["weekly"]))
 
     # CF4
 
     cf4_chart = create_cf4_chart(df_daily)
     st.plotly_chart(cf4_chart)
-
-    # CF5 &/ou 6
-
-    # CF7
-
-    st.header("Focus sur la population, ajout des données de l'INSEE.")
-    st.info(
-        'Nous avons créé un ratio "Consommation Per Capita" pour comparer les régions entre elles. Consommation Totale / Nombre d\'habitants',
-        icon="🏘️",
-    )
-    st.image("images/CF7.png")
-    st.write(
-        "La consommation par habitant médiane des régions du sud est un peu plus élevée que celle des régions du nord, surtout en 2013 et 2014. L'écart se réduit ensuite, et s'inverse légèrement en 2021. Les boîtes se recouvrent largement chaque année : la différence entre nord et sud reste faible."
-    )
 
     # CF8 / 9 / 11
 
@@ -687,20 +778,11 @@ def visualisation():
         "Ce nuage de points compare la production et la consommation d'électricité de chaque région, cumulées de 2013 à 2021. Auvergne-Rhône-Alpes est la première productrice (environ 1 050 TWh) et l'une des deux plus grosses consommatrices (environ 590 TWh). Le Grand Est, le Centre-Val de Loire et la Normandie produisent bien plus qu'ils ne consomment : le Centre-Val de Loire produit environ quatre fois sa consommation. À l'inverse, la Bourgogne-Franche-Comté, la Bretagne et les Pays de la Loire ne produisent que 15 à 25 % environ de ce qu'ils consomment, et l'Île-de-France, première consommatrice (environ 635 TWh), à peine 5 %. Ces régions dépendent des échanges avec les régions productrices."
     )
 
-    st.header("La sobriété énergétique")
-    st.info(
-        "Le secteur de l'électricité en France implique plusieurs acteurs clés, notamment RTE pour le transport, Enedis pour la distribution, et EDF pour la production. Dans les données d'Enedis Open Data pour 2022 et 2023, trois catégories de consommateurs sont distinguées : résidentiels, professionnels, et entreprises, avec des économies d'énergie lors de températures plus élevées l'hiver."
-    )
-    st.image("images/PCF2.png")
-    st.info(
-        "La différence entre les résidentiels et les entreprises/professionnels, peut s'expliquer par la nature de leur comportement en terme de dépenses énergétiques: En effet, les résidentiels ont des habitudes plus réactive (Je baisse, j'augmente) alors que les entreprises et les professionnels sont plutôt proactifs, et ne touchent bien souvent pas au thermostat pour rester stable.​"
-    )
-
     st.title("Consommation des énergies renouvelables en Europe")
 
-    st.image("images/CE1.png")
+    st.plotly_chart(create_ce4_chart(EUROPE_CONS))
 
-    st.image("images/CE2.png")
+    st.plotly_chart(create_ce3_chart(EUROPE_CONS))
     st.write(
         "La consommation d'énergies renouvelables en Europe connaît une croissance significative, stimulée par des politiques environnementales strictes, des objectifs de réduction des émissions et des incitations financières. Les biocarburants gagnent en popularité pour diversifier les transports, tandis que la bioénergie prospère grâce aux ressources forestières et agricoles abondantes. L'énergie hydraulique et éolienne est privilégiée dans des régions adaptées, tandis que le biogaz et les déchets municipaux renouvelables sont encouragés pour une gestion durable des déchets. Les pompes à chaleur, le solaire, et la géothermie sont préférés en fonction des ressources locales, tandis que l'énergie océanique est encore en développement."
     )

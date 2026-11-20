@@ -18,7 +18,6 @@ def ressources():
     st.markdown(
         """
         - **[eco2mix-regional-cons-def](https://odre.opendatasoft.com/explore/dataset/eco2mix-regional-cons-def)** : Consommation énergétique des régions (janvier 2013 à décembre 2021).
-        - **[INSEE Statistiques](https://www.insee.fr/fr/statistiques)** : Population Française par région.
         - **[Météo France](https://donneespubliques.meteofrance.fr)** : Températures régionales.
         - **[Eurostat](https://ec.europa.eu/eurostat/fr)** : Bilans énergétiques en Europe.
         - **[Carte des régions de France (GeoJSON)](https://france-geojson.gregoiredavid.fr/)** : Fournie par Grégoire David.

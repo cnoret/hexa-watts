@@ -2,7 +2,11 @@
 Creation of the "Preparation" page for the Hexa Watts application
 """
 
+import pprint
+
 import streamlit as st
+
+from content.couleurs import COULEURS_EUROPE, COULEURS_FILIERES
 
 
 def preparation():
@@ -43,15 +47,6 @@ def preparation():
         " - 'tco_tch' = Nous avons traité toutes ces valeurs dans leur propre DataFrame."
     )
 
-    # Preparation of INSEE data
-    st.header("Préparation des données de l'INSEE")
-    st.write(
-        "Les données étaient sur un fichier Excel. Nous avons utilisé 'XLRD', la méthode GLOBALS(), "
-        "et des boucles pour extraire ces données dans un DataFrame exploitable.\n\n"
-        "Par la suite, les données de la population des différentes régions par années ont été ajoutées "
-        "à notre DF 'yearly', puis nous avons créé le ratio 'Consommation per Capita', baptisé 'ratio'."
-    )
-
     # Preparation of EUROSTAT data
     st.header("Préparation des données de EUROSTAT")
     st.write(
@@ -70,29 +65,11 @@ def preparation():
         "Nous avons créé deux dictionnaires pour garder des couleurs constantes dans les visualisations :"
     )
 
-    colors = {
-        "Thermique (MW)": "red",
-        "Nucléaire (MW)": "#F7E237",
-        "Eolien (MW)": "lightblue",
-        "Solaire (MW)": "orange",
-        "Hydraulique (MW)": "darkblue",
-        "Bioénergies (MW)": "green",
-    }
-
-    st.code(colors, language="python")
-
-    colors_euro = {
-        "Bioénergie": "#FF0000",  # Red
-        "Déchets municipaux renouvelables": "#00FF00",  # Green
-        "Éolien": "#ADD8E6",  # Light blue
-        "Solaire Photovoltaique": "#FFA500",  # Orange
-        "Solaire Thermique": "#FFFF00",  # Yellow
-        "Hydraulique": "#00008B",  # Dark blue
-        "Biogaz": "#808080",  # Gray
-        "Biocarburants": "#800080",  # Purple
-        "Pompe à chaleur": "#FF0000",  # Red
-        "Océan": "#0000FF",  # Blue
-        "Geothermique": "#D076FF",  # Light purple
-    }
-
-    st.code(colors_euro, language="python")
+    st.code(
+        "COULEURS_FILIERES = " + pprint.pformat(COULEURS_FILIERES, sort_dicts=False),
+        language="python",
+    )
+    st.code(
+        "COULEURS_EUROPE = " + pprint.pformat(COULEURS_EUROPE, sort_dicts=False),
+        language="python",
+    )

@@ -2,7 +2,11 @@
 Creation of the "Preparation" page for the Hexa Watts application
 """
 
+import pprint
+
 import streamlit as st
+
+from content.couleurs import COULEURS_EUROPE, COULEURS_FILIERES
 
 
 def preparation():
@@ -70,29 +74,11 @@ def preparation():
         "Nous avons créé deux dictionnaires pour garder des couleurs constantes dans les visualisations :"
     )
 
-    colors = {
-        "Thermique (MW)": "red",
-        "Nucléaire (MW)": "#F7E237",
-        "Eolien (MW)": "lightblue",
-        "Solaire (MW)": "orange",
-        "Hydraulique (MW)": "darkblue",
-        "Bioénergies (MW)": "green",
-    }
-
-    st.code(colors, language="python")
-
-    colors_euro = {
-        "Bioénergie": "#FF0000",  # Red
-        "Déchets municipaux renouvelables": "#00FF00",  # Green
-        "Éolien": "#ADD8E6",  # Light blue
-        "Solaire Photovoltaique": "#FFA500",  # Orange
-        "Solaire Thermique": "#FFFF00",  # Yellow
-        "Hydraulique": "#00008B",  # Dark blue
-        "Biogaz": "#808080",  # Gray
-        "Biocarburants": "#800080",  # Purple
-        "Pompe à chaleur": "#FF0000",  # Red
-        "Océan": "#0000FF",  # Blue
-        "Geothermique": "#D076FF",  # Light purple
-    }
-
-    st.code(colors_euro, language="python")
+    st.code(
+        "COULEURS_FILIERES = " + pprint.pformat(COULEURS_FILIERES, sort_dicts=False),
+        language="python",
+    )
+    st.code(
+        "COULEURS_EUROPE = " + pprint.pformat(COULEURS_EUROPE, sort_dicts=False),
+        language="python",
+    )

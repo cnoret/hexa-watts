@@ -47,15 +47,6 @@ def preparation():
         " - 'tco_tch' = Nous avons traité toutes ces valeurs dans leur propre DataFrame."
     )
 
-    # Preparation of INSEE data
-    st.header("Préparation des données de l'INSEE")
-    st.write(
-        "Les données étaient sur un fichier Excel. Nous avons utilisé 'XLRD', la méthode GLOBALS(), "
-        "et des boucles pour extraire ces données dans un DataFrame exploitable.\n\n"
-        "Par la suite, les données de la population des différentes régions par années ont été ajoutées "
-        "à notre DF 'yearly', puis nous avons créé le ratio 'Consommation per Capita', baptisé 'ratio'."
-    )
-
     # Preparation of EUROSTAT data
     st.header("Préparation des données de EUROSTAT")
     st.write(

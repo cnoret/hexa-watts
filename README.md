@@ -9,7 +9,7 @@
 
 **How weather drives electricity demand** in the twelve regions of mainland France: production mix, renewables, exchanges between regions, and a gradient boosting model that forecasts regional consumption within **5.5 %** on twelve months it never saw (7.3 % for a naive baseline). Delivered as an interactive Streamlit app, in French.
 
-**Data:** 1,893,312 half-hourly records · 12 regions · Jan 2013 – Dec 2021 · about 470 TWh consumed a year · 4 open data sources (RTE, Météo-France, INSEE, Eurostat)
+**Data:** 1,893,312 half-hourly records · 12 regions · Jan 2013 – Dec 2021 · about 470 TWh consumed a year · 3 open data sources (RTE, Météo-France, Eurostat)
 
 **Live app:** [hexa-watt.streamlit.app](https://hexa-watt.streamlit.app/)
 
@@ -116,7 +116,6 @@ hexa-watts/
 | --- | --- | --- |
 | [RTE eco2mix (ODRÉ)](https://odre.opendatasoft.com/explore/dataset/eco2mix-regional-cons-def) | Half-hourly regional consumption, production and exchanges | 2013 to 2021 |
 | [Météo-France](https://donneespubliques.meteofrance.fr) | Daily regional temperatures | 2016 to October 2021 |
-| [INSEE](https://www.insee.fr/fr/statistiques) | Regional population | 2013 to 2021 |
 | [Eurostat](https://ec.europa.eu/eurostat) | Renewable energy balances by country | 2013 to 2021 |
 
 ## Built with

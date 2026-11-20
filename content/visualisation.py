@@ -768,20 +768,6 @@ def visualisation():
     cf4_chart = create_cf4_chart(df_daily)
     st.plotly_chart(cf4_chart)
 
-    # CF5 &/ou 6
-
-    # CF7
-
-    st.header("Focus sur la population, ajout des données de l'INSEE.")
-    st.info(
-        'Nous avons créé un ratio "Consommation Per Capita" pour comparer les régions entre elles. Consommation Totale / Nombre d\'habitants',
-        icon="🏘️",
-    )
-    st.image("images/CF7.png")
-    st.write(
-        "La consommation par habitant médiane des régions du sud est un peu plus élevée que celle des régions du nord, surtout en 2013 et 2014. L'écart se réduit ensuite, et s'inverse légèrement en 2021. Les boîtes se recouvrent largement chaque année : la différence entre nord et sud reste faible."
-    )
-
     # CF8 / 9 / 11
 
     st.title("Comparaison de la production et de la consommation de l'énergie")
@@ -790,15 +776,6 @@ def visualisation():
     st.plotly_chart(pcf1_chart)
     st.write(
         "Ce nuage de points compare la production et la consommation d'électricité de chaque région, cumulées de 2013 à 2021. Auvergne-Rhône-Alpes est la première productrice (environ 1 050 TWh) et l'une des deux plus grosses consommatrices (environ 590 TWh). Le Grand Est, le Centre-Val de Loire et la Normandie produisent bien plus qu'ils ne consomment : le Centre-Val de Loire produit environ quatre fois sa consommation. À l'inverse, la Bourgogne-Franche-Comté, la Bretagne et les Pays de la Loire ne produisent que 15 à 25 % environ de ce qu'ils consomment, et l'Île-de-France, première consommatrice (environ 635 TWh), à peine 5 %. Ces régions dépendent des échanges avec les régions productrices."
-    )
-
-    st.header("La sobriété énergétique")
-    st.info(
-        "Le secteur de l'électricité en France implique plusieurs acteurs clés, notamment RTE pour le transport, Enedis pour la distribution, et EDF pour la production. Dans les données d'Enedis Open Data pour 2022 et 2023, trois catégories de consommateurs sont distinguées : résidentiels, professionnels, et entreprises, avec des économies d'énergie lors de températures plus élevées l'hiver."
-    )
-    st.image("images/PCF2.png")
-    st.info(
-        "La différence entre les résidentiels et les entreprises/professionnels, peut s'expliquer par la nature de leur comportement en terme de dépenses énergétiques: En effet, les résidentiels ont des habitudes plus réactive (Je baisse, j'augmente) alors que les entreprises et les professionnels sont plutôt proactifs, et ne touchent bien souvent pas au thermostat pour rester stable.​"
     )
 
     st.title("Consommation des énergies renouvelables en Europe")

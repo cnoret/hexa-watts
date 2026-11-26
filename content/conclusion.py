@@ -4,6 +4,8 @@ Creation of the "Conclusion" page for the Hexa Watts application
 
 import streamlit as st
 
+from content.interface import en_tete
+
 # Les images sont passées à st.image par leur chemin : Streamlit lit le fichier
 # à chaque affichage. Un objet PIL mis en cache avec st.cache_resource serait
 # partagé entre les sessions, et deux lectures simultanées du même fichier
@@ -13,23 +15,24 @@ import streamlit as st
 def conclusion():
     """Content of the conclusion page"""
     # Title and Key Quote
-    st.title("Conclusion")
-    try:
-        st.image("images/sobriete.png", width=300)
-    except FileNotFoundError:
-        st.warning("Image introuvable : veuillez vérifier le chemin du fichier.")
+    en_tete(
+        "Conclusion",
+        surtitre="Étape 5 · Ce que nous retenons",
+        sous_titre="Les défis du système électrique français d'ici 2050.",
+    )
 
     st.markdown(
         """
-        > 💡 **\"La sobriété énergétique est la clé d'un avenir durable, car elle nous rappelle que la vraie richesse ne réside pas dans la surconsommation, mais dans l'utilisation judicieuse des ressources de notre planète.\"**
-        > - Yann Arthus-Bertrand
+        > **\"La sobriété énergétique est la clé d'un avenir durable, car elle nous rappelle que la vraie richesse ne réside pas dans la surconsommation, mais dans l'utilisation judicieuse des ressources de notre planète.\"**
+        >
+        > — Yann Arthus-Bertrand
         """
     )
 
     st.divider()
 
     # Key Insights
-    st.subheader("⚡ Les défis à relever pour 2050")
+    st.subheader("Les défis à relever pour 2050")
     st.markdown(
         """
         - **Décarbonation** des sources d'énergie.
@@ -61,7 +64,7 @@ def conclusion():
     st.divider()
 
     # Africa and Hydrogen Section
-    st.subheader("🌍 L'Afrique et l'hydrogène : un avenir prometteur")
+    st.subheader("L'Afrique et l'hydrogène : un avenir prometteur")
     col1, col2 = st.columns([2, 1])
     with col1:
         st.write(
@@ -84,7 +87,7 @@ def conclusion():
     st.divider()
 
     # Additional Resources
-    st.subheader("🔗 Ressources supplémentaires")
+    st.subheader("Ressources supplémentaires")
     st.markdown(
         """
         - [Agence Internationale de l'Énergie](https://www.iea.org/)
@@ -98,5 +101,5 @@ def conclusion():
         **Conclusion finale** : La sobriété énergétique, combinée à des avancées technologiques,
         une gestion stratégique et une coopération internationale, est essentielle pour relever les défis énergétiques de demain.
         """,
-        icon="🌟",
+        icon=":material/lightbulb:",
     )

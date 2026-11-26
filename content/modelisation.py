@@ -11,6 +11,8 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
+from content.interface import en_tete, graphique
+
 from content.caracteristiques import REGIONS, construire_caracteristiques
 
 CHEMIN_MODELE = "models/modele_consommation.joblib"
@@ -195,19 +197,19 @@ def show_metrics(metriques):
     col1, col2, col3, col4 = st.columns(4)
     col1.metric(
         "Erreur absolue moyenne (MAE)", format_mw(test["mae"]),
-        delta=format_mw(test["mae"] - reference["mae"], signe=True), delta_color="inverse",
+        delta=format_mw(test["mae"] - reference["mae"], signe=True), delta_color="inverse", border=True,
     )
     col2.metric(
         "RMSE", format_mw(test["rmse"]),
-        delta=format_mw(test["rmse"] - reference["rmse"], signe=True), delta_color="inverse",
+        delta=format_mw(test["rmse"] - reference["rmse"], signe=True), delta_color="inverse", border=True,
     )
     col3.metric(
         "R²", f"{test['r2']:.3f}",
-        delta=f"{test['r2'] - reference['r2']:+.3f}",
+        delta=f"{test['r2'] - reference['r2']:+.3f}", border=True,
     )
     col4.metric(
         "Erreur relative moyenne (MAPE)", format_pct(test["mape"]),
-        delta=f"{(test['mape'] - reference['mape']) * 100:+.1f} pt", delta_color="inverse",
+        delta=f"{(test['mape'] - reference['mape']) * 100:+.1f} pt", delta_color="inverse", border=True,
     )
 
     with st.expander("Détail des performances et poids des variables"):
@@ -236,7 +238,7 @@ def show_metrics(metriques):
             "**Poids des variables** : de combien l'erreur augmente quand on mélange "
             "au hasard les valeurs d'une variable dans le jeu de test (importance par permutation)."
         )
-        st.plotly_chart(fig, width="stretch")
+        graphique(fig, width="stretch")
         st.caption(
             "L'année pèse zéro sur la période de test : le modèle n'a vu que les années "
             f"{metriques['annees'][0]} à {metriques['annees'][1]} et traite toute année "
@@ -279,7 +281,7 @@ def show_temperature_effect(model, user_input, temperatures):
         f"grisée couvre les températures moyennes relevées dans la région à ± {FENETRE_PLAGE} "
         "jours de cette date, toutes années confondues."
     )
-    st.plotly_chart(fig, width="stretch")
+    graphique(fig, width="stretch")
 
 
 def modelisation():
@@ -293,8 +295,11 @@ def modelisation():
     temperatures = load_temperatures()
     premiere_annee, derniere_annee = metriques["annees"]
 
-    st.title("🔮 Modélisation et prédictions")
-    st.image("images/ML.png", width=300)
+    en_tete(
+        "Modélisation et prédictions",
+        surtitre="Étape 4 · Gradient boosting",
+        sous_titre="Prédire la consommation d'une région selon la date, l'heure et la météo.",
+    )
 
     st.markdown(
         f"""
@@ -316,7 +321,7 @@ def modelisation():
     if not user_input["tmin"] <= user_input["tmoy"] <= user_input["tmax"]:
         st.warning(
             "La température moyenne devrait se situer entre la minimale et la maximale.",
-            icon="⚠️",
+            icon=":material/warning:",
         )
     annee = user_input["date"].year
     if not premiere_annee <= annee <= derniere_annee:
@@ -325,12 +330,12 @@ def modelisation():
             f"Pour {annee}, il applique le niveau de consommation de "
             f"{derniere_annee if annee > derniere_annee else premiere_annee} : "
             "l'évolution d'une année sur l'autre n'est pas extrapolée.",
-            icon="⚠️",
+            icon=":material/warning:",
         )
 
     st.divider()
 
-    if st.button("⚡ Prédire la consommation électrique"):
+    if st.button("Prédire la consommation électrique", type="primary", icon=":material/bolt:"):
         X = construire_caracteristiques(
             user_input["region"], [user_input["date"]], user_input["heure"],
             user_input["tmin"], user_input["tmoy"], user_input["tmax"],
@@ -338,10 +343,10 @@ def modelisation():
         prediction = model.predict(X)[0]
         mape = metriques["test"]["mape"]
         st.success(
-            f"🌟 Consommation prédite : **{format_mw(prediction)}**\n\n"
+            f"Consommation prédite : **{format_mw(prediction)}**\n\n"
             f"Sur le jeu de test, les prédictions s'écartent en moyenne de {format_pct(mape)} "
             f"de la consommation réelle (MAPE), soit environ ± {format_mw(prediction * mape)} "
             "à ce niveau. L'écart d'une prédiction isolée peut être plus grand.",
-            icon="🔮",
+            icon=":material/bolt:",
         )
         show_temperature_effect(model, user_input, temperatures)

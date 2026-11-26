@@ -6,6 +6,8 @@ import pprint
 
 import streamlit as st
 
+from content.interface import en_tete
+
 from content.couleurs import COULEURS_EUROPE, COULEURS_FILIERES
 
 
@@ -13,7 +15,11 @@ def preparation():
     """Content of the data preparation page"""
 
     # Page title
-    st.title("Préparation des données : DF (Eco2Mix)")
+    en_tete(
+        "Préparation des données",
+        surtitre="Étape 2 · Nettoyage et mise en forme",
+        sous_titre="Valeurs manquantes, nouvelles colonnes et jeux de données dérivés.",
+    )
 
     # Handling missing values
     st.header("Traitement des valeurs manquantes")
@@ -21,7 +27,7 @@ def preparation():
         "Notre jeu de données est très propre, les NaNs présents correspondent uniquement "
         "à une production ou consommation nulle. Nous avons procédé en découpage par étage "
         "afin de traiter séparément ces valeurs. Nous n'avons pas de duplicatas.",
-        icon="✨",
+        icon=":material/auto_awesome:",
     )
 
     # Modifications and new columns

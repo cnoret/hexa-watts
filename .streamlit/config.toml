@@ -1,0 +1,21 @@
+# Thème « tableau de bord » : fond gris clair, cartes blanches, accent bleu.
+[theme]
+base = "light"
+primaryColor = "#2E5EAA"
+backgroundColor = "#F3F5F9"
+secondaryBackgroundColor = "#FFFFFF"
+textColor = "#1B2333"
+borderColor = "#E3E8F0"
+linkColor = "#2E5EAA"
+baseRadius = "12px"
+showWidgetBorder = true
+font = "'Plus Jakarta Sans':https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+headingFont = "'Plus Jakarta Sans':https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700&display=swap"
+chartCategoricalColors = ["#2E5EAA", "#F39237", "#4CB944", "#E4572E", "#8E7CF0", "#76B7E5", "#FFC914", "#E377C2"]
+
+[theme.sidebar]
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F3F5F9"
+
+[client]
+toolbarMode = "minimal"

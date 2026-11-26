@@ -10,6 +10,7 @@ import pyarrow.compute as pc
 import pyarrow.parquet as pq
 
 from content.couleurs import COULEURS_EUROPE, COULEURS_FILIERES
+from content.interface import en_tete, graphique, indicateurs, nombre_fr
 from content.memoire import liberer_memoire
 
 
@@ -250,13 +251,45 @@ def load_europe_data(filepath="datasets/EUROPE_DATA.csv"):
     return europe
 
 
+def _indicateurs_cles(aggregates):
+    """Indicateurs clés de la production, calculés à partir des données."""
+    prod = aggregates["prod_yearly"]
+    premiere, derniere = prod.index.min(), prod.index.max()
+    total = prod.sum(axis=1)
+    part_nucleaire = prod["Nucléaire"] / total * 100
+    part_verte = prod[GREEN_NAMES].sum(axis=1) / total * 100
+    conso = aggregates["cons_yearly"].groupby("Année")["Consommation"].sum()
+
+    def ecart(serie):
+        return f"{nombre_fr(serie[derniere] - serie[premiere], 1, signe=True)} pts depuis {premiere}"
+
+    indicateurs(
+        [
+            (f"Production {derniere}", f"{nombre_fr(total[derniere])} TWh",
+             f"{nombre_fr(total[premiere])} TWh en {premiere}"),
+            (f"Consommation {derniere}", f"{nombre_fr(conso[derniere])} TWh",
+             f"{nombre_fr(conso[premiere])} TWh en {premiere}"),
+            ("Part du nucléaire", f"{nombre_fr(part_nucleaire[derniere], 1)} %",
+             ecart(part_nucleaire)),
+            ("Part renouvelable", f"{nombre_fr(part_verte[derniere], 1)} %",
+             ecart(part_verte)),
+        ]
+    )
+
+
 def visualisation():
     "Contenu de la page de la page visualisation"
     aggregates = load_eco2mix_aggregates()
     green = aggregates["green"]
     EUROPE_DATA = load_europe_data()
 
-    st.title("Analyses et visualisations")
+    en_tete(
+        "Analyses et visualisations",
+        surtitre="Eco2Mix · Eurostat · 2013 – 2021",
+        sous_titre="Ce que la France produit, ce qu'elle consomme, et comment "
+        "l'électricité circule entre les régions et en Europe.",
+    )
+    _indicateurs_cles(aggregates)
 
     def create_pf1_chart(prod):
         # Notre première Data Viz PF1
@@ -336,7 +369,10 @@ def visualisation():
                 df,
                 names="Région",
                 values=type_energie,
-                color_discrete_sequence=px.colors.sequential.Greens_r,
+                # Du vert foncé au vert moyen : les verts très clairs ne se voient pas sur fond blanc
+                color_discrete_sequence=px.colors.sample_colorscale(
+                    "Greens", [1 - i / 16 for i in range(12)]
+                ),
                 title=f"Répartition de la production {type_energie.lower()} par région (2013-2021)",
             )
             return fig
@@ -355,7 +391,7 @@ def visualisation():
             labels={"Nucléaire": "Production (TWh)"},
             color_discrete_sequence=[colors["Nucléaire"]],
         )
-        fig.update_traces(marker_line_color="black", marker_line_width=1)
+        fig.update_traces(marker_line_color="#0E1117", marker_line_width=1)
         return fig
 
     # Création du DataFrame 'EUROPE_PROD'
@@ -432,7 +468,7 @@ def visualisation():
                 line=dict(color="gray"),
                 marker=dict(
                     size=10,
-                    color=["#D62728" if v > 0 else "#1F77B4" for v in solde],
+                    color=["#E4572E" if v > 0 else "#2E5EAA" for v in solde],
                 ),
                 hovertemplate="%{x} : %{y:.1f} TWh<extra></extra>",
             )
@@ -531,7 +567,7 @@ def visualisation():
             title="Consommation d'électricité par région et par année",
             labels={"Consommation": "Consommation (TWh)"},
             # 12 régions : la palette par défaut n'a que 10 couleurs
-            color_discrete_sequence=px.colors.qualitative.Dark24,
+            color_discrete_sequence=px.colors.qualitative.Light24,
             category_orders={
                 "Région": cons_yearly.groupby("Région")["Consommation"]
                 .sum()
@@ -590,8 +626,6 @@ def visualisation():
             xaxis_title="Production (TWh)",
             yaxis_title="Consommation (TWh)",
             legend_title="Régions",
-            xaxis=dict(gridcolor="lightgray"),
-            yaxis=dict(gridcolor="lightgray"),
         )
 
         return fig
@@ -658,143 +692,145 @@ def visualisation():
 
     """ APRES CETTE LIMITE, ON AJOUTE TOUS LES TITRES, BODY ET APPELS DES FONCTIONS."""
 
+    onglet_prod, onglet_taux, onglet_cons, onglet_echanges, onglet_europe = st.tabs(
+        ["Production", "Taux de charge", "Consommation", "Échanges régionaux", "Europe"]
+    )
+
     ### PRODUCTION ###
-    st.title("Production de l'énergie")
+    with onglet_prod:
+        st.subheader("Production de l'énergie")
+        # PF1
+        pf1_chart = create_pf1_chart(aggregates["prod_yearly"])
+        graphique(pf1_chart)
+        st.info(
+            "Dépendance au nucléaire : Le graphique révèle que la France dépend largement de l'énergie nucléaire pour sa production d'électricité. Cette source d'énergie représente une part substantielle de la production totale, ce qui indique son importance dans le mix énergétique du pays. La France a historiquement investi massivement dans l'énergie nucléaire, ce qui lui a permis de disposer d'une source d'énergie fiable et à faible émission de carbone. Nous pourrons comparer cette stratégie au reste de l'Europe plus tard dans ce rapport."
+        )
 
-    # PF1
-    pf1_chart = create_pf1_chart(aggregates["prod_yearly"])
-    st.plotly_chart(pf1_chart)
-    st.info(
-        "Dépendance au nucléaire : Le graphique révèle que la France dépend largement de l'énergie nucléaire pour sa production d'électricité. Cette source d'énergie représente une part substantielle de la production totale, ce qui indique son importance dans le mix énergétique du pays. La France a historiquement investi massivement dans l'énergie nucléaire, ce qui lui a permis de disposer d'une source d'énergie fiable et à faible émission de carbone. Nous pourrons comparer cette stratégie au reste de l'Europe plus tard dans ce rapport."
-    )
+        # PF2
+        pf2_chart = create_pf2_chart(aggregates["prod_yearly"])
+        graphique(pf2_chart)
+        st.info(
+            "La production d'électricité renouvelable progresse, portée par l'éolien et le solaire : la production éolienne passe de 16 TWh en 2013 à 40 TWh en 2020 (36 TWh en 2021), et la production solaire de 4,5 à 14 TWh. À elles deux, ces filières passent de moins de 4 % à près de 10 % de la production d'électricité du pays. L'hydraulique reste la première source renouvelable, avec 53 à 75 TWh par an selon la pluviométrie : c'est elle qui fait varier le total d'une année sur l'autre. Cette croissance montre que la France diversifie son mix électrique, dans une logique de réduction des émissions de gaz à effet de serre."
+        )
 
-    # PF2
-    pf2_chart = create_pf2_chart(aggregates["prod_yearly"])
-    st.plotly_chart(pf2_chart)
-    st.info(
-        "La production d'électricité renouvelable progresse, portée par l'éolien et le solaire : la production éolienne passe de 16 TWh en 2013 à 40 TWh en 2020 (36 TWh en 2021), et la production solaire de 4,5 à 14 TWh. À elles deux, ces filières passent de moins de 4 % à près de 10 % de la production d'électricité du pays. L'hydraulique reste la première source renouvelable, avec 53 à 75 TWh par an selon la pluviométrie : c'est elle qui fait varier le total d'une année sur l'autre. Cette croissance montre que la France diversifie son mix électrique, dans une logique de réduction des émissions de gaz à effet de serre."
-    )
+        # PF3
+        pf3_chart = create_pf3_chart(green)
+        graphique(pf3_chart)
+        st.info(
+            "Ce graphique illustre les disparités de production d'électricité renouvelable entre les régions, en cumul de 2013 à 2021. Auvergne-Rhône-Alpes se distingue nettement (environ 280 TWh), grâce à une production hydraulique bien supérieure à celle des autres régions. Elle est suivie, loin derrière, par l'Occitanie (environ 155 TWh) et le Grand Est (environ 140 TWh), puis par Provence-Alpes-Côte d'Azur (environ 110 TWh) : dans ces trois régions aussi, l'hydraulique domine, grâce aux Pyrénées, au Rhin et aux Alpes. Le Grand Est et les Hauts-de-France se démarquent pour l'éolien, dont ils assurent à eux deux près de la moitié de la production. Sans surprise, le solaire est surtout exploité dans le sud : la Nouvelle-Aquitaine, l'Occitanie et Provence-Alpes-Côte d'Azur en produisent près des deux tiers. Enfin, la bioénergie est présente dans toutes les régions."
+        )
 
-    # PF3
-    pf3_chart = create_pf3_chart(green)
-    st.plotly_chart(pf3_chart)
-    st.info(
-        "Ce graphique illustre les disparités de production d'électricité renouvelable entre les régions, en cumul de 2013 à 2021. Auvergne-Rhône-Alpes se distingue nettement (environ 280 TWh), grâce à une production hydraulique bien supérieure à celle des autres régions. Elle est suivie, loin derrière, par l'Occitanie (environ 155 TWh) et le Grand Est (environ 140 TWh), puis par Provence-Alpes-Côte d'Azur (environ 110 TWh) : dans ces trois régions aussi, l'hydraulique domine, grâce aux Pyrénées, au Rhin et aux Alpes. Le Grand Est et les Hauts-de-France se démarquent pour l'éolien, dont ils assurent à eux deux près de la moitié de la production. Sans surprise, le solaire est surtout exploité dans le sud : la Nouvelle-Aquitaine, l'Occitanie et Provence-Alpes-Côte d'Azur en produisent près des deux tiers. Enfin, la bioénergie est présente dans toutes les régions."
-    )
+        # PF4
 
-    # PF4
+        st.subheader("Répartition régionale par filière renouvelable")
+        type_energies = green.columns[1:]
+        selected_energy = st.selectbox("Filière renouvelable", type_energies)
 
-    st.warning(
-        "Sélectionnez un type d'énergie verte pour voir son split de production par région",
-        icon="🤖",
-    )
-    type_energies = green.columns[1:]
-    selected_energy = st.selectbox("Type d'énergie:", type_energies)
+        pf4_chart = create_pf4_chart(green, selected_energy)
+        graphique(pf4_chart)
 
-    pf4_chart = create_pf4_chart(green, selected_energy)
-    st.plotly_chart(pf4_chart)
+        # PF5
+        st.subheader("Éolien en mer et éolien terrestre")
+        st.info(
+            "Sur la période étudiée (2013-2021), toute la production éolienne française est terrestre : le premier parc éolien en mer, au large de Saint-Nazaire, n'a été mis en service qu'en 2022. Les colonnes « Eolien terrestre » et « Eolien offshore » du jeu Eco2Mix ne sont remplies qu'en 2021, et leurs valeurs ne correspondent pas à de l'éolien : la colonne « offshore » n'est non nulle que dans les sept régions qui ont des centrales nucléaires, y compris Auvergne-Rhône-Alpes, qui n'a pas de façade maritime. Ces colonnes sont décalées par rapport à leur intitulé, et nous ne les utilisons donc pas."
+        )
 
-    # PF5
-    st.subheader("Éolien en mer et éolien terrestre")
-    st.info(
-        "Sur la période étudiée (2013-2021), toute la production éolienne française est terrestre : le premier parc éolien en mer, au large de Saint-Nazaire, n'a été mis en service qu'en 2022. Les colonnes « Eolien terrestre » et « Eolien offshore » du jeu Eco2Mix ne sont remplies qu'en 2021, et leurs valeurs ne correspondent pas à de l'éolien : la colonne « offshore » n'est non nulle que dans les sept régions qui ont des centrales nucléaires, y compris Auvergne-Rhône-Alpes, qui n'a pas de façade maritime. Ces colonnes sont décalées par rapport à leur intitulé, et nous ne les utilisons donc pas."
-    )
+        # PF6
+        st.subheader("Production nucléaire par région")
+        pf6_chart = create_pf6_chart(aggregates["nucleaire"])
+        graphique(pf6_chart)
 
-    # PF6
-    st.subheader("Production nucléaire par région")
-    pf6_chart = create_pf6_chart(aggregates["nucleaire"])
-    st.plotly_chart(pf6_chart)
+        st.info(
+            "Sur ce graphique, nous observons les régions qui produisent de l'électricité dans des centrales nucléaires. Seules sept régions sont concernées, et Auvergne-Rhône-Alpes, le Grand Est et le Centre-Val de Loire en sont les principales productrices, avec 650 à 750 TWh chacune sur la période. Comme le nucléaire représente entre 67 % et 77 % de la production d'électricité française selon les années, toutes les régions en dépendent, y compris celles qui n'en produisent pas et qui l'importent. La partie « Distribution » montre que cinq de ces sept régions (Auvergne-Rhône-Alpes, Centre-Val de Loire, Grand Est, Normandie et Nouvelle-Aquitaine) sont exportatrices nettes chaque année de 2013 à 2020. L'Occitanie reste importatrice, et les Hauts-de-France ne deviennent exportateurs qu'à partir de 2018."
+        )
 
-    st.info(
-        "Sur ce graphique, nous observons les régions qui produisent de l'électricité dans des centrales nucléaires. Seules sept régions sont concernées, et Auvergne-Rhône-Alpes, le Grand Est et le Centre-Val de Loire en sont les principales productrices, avec 650 à 750 TWh chacune sur la période. Comme le nucléaire représente entre 67 % et 77 % de la production d'électricité française selon les années, toutes les régions en dépendent, y compris celles qui n'en produisent pas et qui l'importent. La partie « Distribution » montre que cinq de ces sept régions (Auvergne-Rhône-Alpes, Centre-Val de Loire, Grand Est, Normandie et Nouvelle-Aquitaine) sont exportatrices nettes chaque année de 2013 à 2020. L'Occitanie reste importatrice, et les Hauts-de-France ne deviennent exportateurs qu'à partir de 2018."
-    )
+    ### TAUX DE CHARGE ET DE COUVERTURE ###
+    with onglet_taux:
+        st.subheader("Focus sur TCO & TCH")
+        st.info(
+            "Le taux de charge d'une filière se réfère à la quantité de production par rapport à la capacité de production totale en service de cette filière.",
+            icon=":material/info:",
+        )
 
-    st.title("Focus sur TCO & TCH")
-    st.info(
-        "Le taux de charge d'une filière se réfère à la quantité de production par rapport à la capacité de production totale en service de cette filière.",
-        icon="ℹ️",
-    )
+        tcf1_chart = create_tcf1_chart(tco_tch)
+        graphique(tcf1_chart)
+        st.write(
+            "Le graphique présent affiche les moyennes des taux de charge pour l'énergie solaire, mettant en évidence des pics naturels pendant les mois estivaux, lorsque l'ensoleillement est plus intense. La moyenne maximale se situe aux alentours de 50%. Ce qui ressort de cette analyse, c'est que les régions générant la plus grande quantité d'énergie solaire ont généralement des taux de charge moyens plus bas. Ceci s'explique par la plus grande taille de leurs installations par rapport à d'autres régions. Par exemple, la région Centre-Val de Loire ne contribue qu'à 3 % de la production solaire totale, mais elle détient le record du taux de charge moyen, près de 50 % en juillet."
+        )
 
-    tcf1_chart = create_tcf1_chart(tco_tch)
-    st.plotly_chart(tcf1_chart)
-    st.write(
-        "Le graphique présent affiche les moyennes des taux de charge pour l'énergie solaire, mettant en évidence des pics naturels pendant les mois estivaux, lorsque l'ensoleillement est plus intense. La moyenne maximale se situe aux alentours de 50%. Ce qui ressort de cette analyse, c'est que les régions générant la plus grande quantité d'énergie solaire ont généralement des taux de charge moyens plus bas. Ceci s'explique par la plus grande taille de leurs installations par rapport à d'autres régions. Par exemple, la région Centre-Val de Loire ne contribue qu'à 3 % de la production solaire totale, mais elle détient le record du taux de charge moyen, près de 50 % en juillet."
-    )
+        tcf2_chart = create_tcf2_chart(tco_tch)
+        graphique(tcf2_chart)
+        st.write(
+            "Le graphique ci-dessous illustre le taux de charge éolien, mettant en évidence des pics pendant la saison hivernale. On observe un taux de charge moyen record pour les régions Grand Est et Centre, dépassant les 50% en février. Ces deux régions contribuent respectivement à 22% et 8% de la production éolienne en France. En revanche, la région Hauts-de-France, qui représente près de 26 % de la production éolienne totale, affiche un taux de charge moyen maximal un peu plus bas, autour de 49 %, ce qui s'explique également par la taille de ses installations."
+        )
 
-    tcf2_chart = create_tcf2_chart(tco_tch)
-    st.plotly_chart(tcf2_chart)
-    st.write(
-        "Le graphique ci-dessous illustre le taux de charge éolien, mettant en évidence des pics pendant la saison hivernale. On observe un taux de charge moyen record pour les régions Grand Est et Centre, dépassant les 50% en février. Ces deux régions contribuent respectivement à 22% et 8% de la production éolienne en France. En revanche, la région Hauts-de-France, qui représente près de 26 % de la production éolienne totale, affiche un taux de charge moyen maximal un peu plus bas, autour de 49 %, ce qui s'explique également par la taille de ses installations."
-    )
-
-    st.info(
-        "Le taux de couverture d’une filière de production au sein d’une région représente la part de cette filière dans la consommation de cette région.",
-        icon="ℹ️",
-    )
-    tcf3_chart = create_tcf3_chart(tco_tch)
-    st.plotly_chart(tcf3_chart)
-    st.write(
-        "Nous choisissons ici d'observer les variations du taux de couverture du nucléaire, pour observer les différences des tendances entre les régions au cours de l'année.​ Ce que nous pouvons voir très clairement, c'est que la région Centre Val de Loire se démarque tout particulièrement, car c'est une région fortement productrice, mais peu consommatrice, et son taux de couverture est largement au-dessus de 100% lorsque la consommation est moins forte dans cette région.​"
-    )
-
-    st.header("Donnée de la production des Pays Européens")
-
-    pe1a_chart = create_pe1a_chart(EUROPE_PROD)
-    st.plotly_chart(pe1a_chart)
-    st.info(
-        "Le graphique montre la production d'énergies renouvelables cumulée de 2013 à 2021, toutes formes d'énergie confondues (pas seulement l'électricité). L'Allemagne est en tête (environ 9 900 TWh), suivie de la France et de l'Italie presque à égalité (environ 5 700 et 5 600 TWh), puis de la Suède (environ 4 200 TWh). Les facteurs influençant ces résultats incluent les ressources naturelles, les politiques gouvernementales, les investissements dans les technologies écologiques, ainsi que la taille et la consommation énergétique des pays. En Allemagne, l'accent est mis sur l'éolien, le solaire photovoltaïque et la biomasse grâce à l'initiative Energiewende. La France, bien que dépendante du nucléaire, cherche à diversifier son mix énergétique en favorisant les énergies renouvelables, en particulier l'hydroélectricité. L'Italie se distingue par son potentiel en énergie solaire photovoltaïque, tandis que la Suède mise sur l'hydroélectricité et la bioénergie pour atteindre une production énergétique 100% renouvelable d'ici 2040. L'Allemagne et la France se démarquent également dans les biocarburants et la bioénergie, grâce à des politiques favorables, des ressources agricoles abondantes et des incitations financières pour la production d'énergie à partir de résidus organiques."
-    )
-
-    pe2a_chart = create_pe2a_chart(EUROPE_PROD)
-    st.plotly_chart(pe2a_chart)
-    st.info(
-        "De 2013 à 2021, la production européenne d'énergie renouvelable progresse surtout, en volume, grâce aux biocarburants (+585 TWh), à la bioénergie (+208 TWh) et à l'éolien (+177 TWh). En proportion, les plus fortes hausses sont celles des pompes à chaleur (production multipliée par 3,2), du solaire photovoltaïque (multipliée par 2) et de l'éolien (multipliée par 1,85). L'hydraulique, elle, recule légèrement."
-    )
-
-    st.title("Distribution de l'énergie")
-
-    st.warning("Sélectionnez une région pour afficher le graphique", icon="🤖")
-    regions = distrib["Région"].unique()
-    selected_region = st.selectbox("Région", regions)
-    st.plotly_chart(create_df1_chart(distrib, selected_region))
-
-    st.image("images/distrib_map.png")
-    st.info(
-        "La carte montre, pour l'année 2013, en rouge les régions importatrices et en bleu les exportatrices. Ces tendances restent stables jusqu'en 2020, à deux nuances près : les exportations nettes de la Normandie diminuent de plus de moitié (49 TWh en 2013, 21 TWh en 2020), et les Hauts-de-France passent d'importateurs à exportateurs nets à partir de 2018. Les échanges de 2021 ne sont pas exploitables dans notre jeu de données."
-    )
+        st.info(
+            "Le taux de couverture d’une filière de production au sein d’une région représente la part de cette filière dans la consommation de cette région.",
+            icon=":material/info:",
+        )
+        tcf3_chart = create_tcf3_chart(tco_tch)
+        graphique(tcf3_chart)
+        st.write(
+            "Nous choisissons ici d'observer les variations du taux de couverture du nucléaire, pour observer les différences des tendances entre les régions au cours de l'année.​ Ce que nous pouvons voir très clairement, c'est que la région Centre Val de Loire se démarque tout particulièrement, car c'est une région fortement productrice, mais peu consommatrice, et son taux de couverture est largement au-dessus de 100% lorsque la consommation est moins forte dans cette région.​"
+        )
 
     ### CONSOMMATION ###
+    with onglet_cons:
+        st.subheader("Consommation de l'énergie")
+        # CF1
+        graphique(create_cf1_chart(aggregates["cons_yearly"]))
 
-    st.title("Consommation de l'énergie")
-    # CF1
-    st.plotly_chart(create_cf1_chart(aggregates["cons_yearly"]))
+        # CF2
+        graphique(create_cf2_chart(aggregates["cons_monthly"]))
 
-    # CF2
-    st.plotly_chart(create_cf2_chart(aggregates["cons_monthly"]))
+        # CF3
+        graphique(create_cf3_chart(aggregates["weekly"]))
 
-    # CF3
-    st.plotly_chart(create_cf3_chart(aggregates["weekly"]))
+        # CF4
 
-    # CF4
+        cf4_chart = create_cf4_chart(df_daily)
+        graphique(cf4_chart)
 
-    cf4_chart = create_cf4_chart(df_daily)
-    st.plotly_chart(cf4_chart)
+        # CF8 / 9 / 11
 
-    # CF8 / 9 / 11
+        st.subheader("Comparaison de la production et de la consommation")
+        pcf1_chart = create_pcf1_chart(aggregates["consprod"])
+        graphique(pcf1_chart)
+        st.write(
+            "Ce nuage de points compare la production et la consommation d'électricité de chaque région, cumulées de 2013 à 2021. Auvergne-Rhône-Alpes est la première productrice (environ 1 050 TWh) et l'une des deux plus grosses consommatrices (environ 590 TWh). Le Grand Est, le Centre-Val de Loire et la Normandie produisent bien plus qu'ils ne consomment : le Centre-Val de Loire produit environ quatre fois sa consommation. À l'inverse, la Bourgogne-Franche-Comté, la Bretagne et les Pays de la Loire ne produisent que 15 à 25 % environ de ce qu'ils consomment, et l'Île-de-France, première consommatrice (environ 635 TWh), à peine 5 %. Ces régions dépendent des échanges avec les régions productrices."
+        )
 
-    st.title("Comparaison de la production et de la consommation de l'énergie")
+    ### ÉCHANGES ###
+    with onglet_echanges:
+        st.subheader("Distribution de l'énergie")
+        regions = distrib["Région"].unique()
+        selected_region = st.selectbox("Région", regions)
+        graphique(create_df1_chart(distrib, selected_region))
 
-    pcf1_chart = create_pcf1_chart(aggregates["consprod"])
-    st.plotly_chart(pcf1_chart)
-    st.write(
-        "Ce nuage de points compare la production et la consommation d'électricité de chaque région, cumulées de 2013 à 2021. Auvergne-Rhône-Alpes est la première productrice (environ 1 050 TWh) et l'une des deux plus grosses consommatrices (environ 590 TWh). Le Grand Est, le Centre-Val de Loire et la Normandie produisent bien plus qu'ils ne consomment : le Centre-Val de Loire produit environ quatre fois sa consommation. À l'inverse, la Bourgogne-Franche-Comté, la Bretagne et les Pays de la Loire ne produisent que 15 à 25 % environ de ce qu'ils consomment, et l'Île-de-France, première consommatrice (environ 635 TWh), à peine 5 %. Ces régions dépendent des échanges avec les régions productrices."
-    )
+        st.image("images/distrib_map.png")
+        st.info(
+            "La carte montre, pour l'année 2013, en rouge les régions importatrices et en bleu les exportatrices. Ces tendances restent stables jusqu'en 2020, à deux nuances près : les exportations nettes de la Normandie diminuent de plus de moitié (49 TWh en 2013, 21 TWh en 2020), et les Hauts-de-France passent d'importateurs à exportateurs nets à partir de 2018. Les échanges de 2021 ne sont pas exploitables dans notre jeu de données."
+        )
 
-    st.title("Consommation des énergies renouvelables en Europe")
+    ### EUROPE ###
+    with onglet_europe:
+        st.subheader("Production d'énergies renouvelables en Europe")
+        pe1a_chart = create_pe1a_chart(EUROPE_PROD)
+        graphique(pe1a_chart)
+        st.info(
+            "Le graphique montre la production d'énergies renouvelables cumulée de 2013 à 2021, toutes formes d'énergie confondues (pas seulement l'électricité). L'Allemagne est en tête (environ 9 900 TWh), suivie de la France et de l'Italie presque à égalité (environ 5 700 et 5 600 TWh), puis de la Suède (environ 4 200 TWh). Les facteurs influençant ces résultats incluent les ressources naturelles, les politiques gouvernementales, les investissements dans les technologies écologiques, ainsi que la taille et la consommation énergétique des pays. En Allemagne, l'accent est mis sur l'éolien, le solaire photovoltaïque et la biomasse grâce à l'initiative Energiewende. La France, bien que dépendante du nucléaire, cherche à diversifier son mix énergétique en favorisant les énergies renouvelables, en particulier l'hydroélectricité. L'Italie se distingue par son potentiel en énergie solaire photovoltaïque, tandis que la Suède mise sur l'hydroélectricité et la bioénergie pour atteindre une production énergétique 100% renouvelable d'ici 2040. L'Allemagne et la France se démarquent également dans les biocarburants et la bioénergie, grâce à des politiques favorables, des ressources agricoles abondantes et des incitations financières pour la production d'énergie à partir de résidus organiques."
+        )
 
-    st.plotly_chart(create_ce4_chart(EUROPE_CONS))
+        pe2a_chart = create_pe2a_chart(EUROPE_PROD)
+        graphique(pe2a_chart)
+        st.info(
+            "De 2013 à 2021, la production européenne d'énergie renouvelable progresse surtout, en volume, grâce aux biocarburants (+585 TWh), à la bioénergie (+208 TWh) et à l'éolien (+177 TWh). En proportion, les plus fortes hausses sont celles des pompes à chaleur (production multipliée par 3,2), du solaire photovoltaïque (multipliée par 2) et de l'éolien (multipliée par 1,85). L'hydraulique, elle, recule légèrement."
+        )
 
-    st.plotly_chart(create_ce3_chart(EUROPE_CONS))
-    st.write(
-        "La consommation d'énergies renouvelables en Europe connaît une croissance significative, stimulée par des politiques environnementales strictes, des objectifs de réduction des émissions et des incitations financières. Les biocarburants gagnent en popularité pour diversifier les transports, tandis que la bioénergie prospère grâce aux ressources forestières et agricoles abondantes. L'énergie hydraulique et éolienne est privilégiée dans des régions adaptées, tandis que le biogaz et les déchets municipaux renouvelables sont encouragés pour une gestion durable des déchets. Les pompes à chaleur, le solaire, et la géothermie sont préférés en fonction des ressources locales, tandis que l'énergie océanique est encore en développement."
-    )
+        st.subheader("Consommation d'énergies renouvelables en Europe")
+        graphique(create_ce4_chart(EUROPE_CONS))
+
+        graphique(create_ce3_chart(EUROPE_CONS))
+        st.write(
+            "La consommation d'énergies renouvelables en Europe connaît une croissance significative, stimulée par des politiques environnementales strictes, des objectifs de réduction des émissions et des incitations financières. Les biocarburants gagnent en popularité pour diversifier les transports, tandis que la bioénergie prospère grâce aux ressources forestières et agricoles abondantes. L'énergie hydraulique et éolienne est privilégiée dans des régions adaptées, tandis que le biogaz et les déchets municipaux renouvelables sont encouragés pour une gestion durable des déchets. Les pompes à chaleur, le solaire, et la géothermie sont préférés en fonction des ressources locales, tandis que l'énergie océanique est encore en développement."
+        )

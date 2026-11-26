@@ -19,14 +19,14 @@
 
 ## What's inside
 
-The app has seven pages:
+The app has seven pages, each with its own URL (for example `/analyses`), reached from the sidebar. Each page opens with its key figures, and the Analyses page is split into tabs (Production, Load factors, Consumption, Regional exchanges, Europe).
 
 | Page | Content |
 | --- | --- |
 | Introduction | Context and questions of the study |
 | Exploration des données | Overview of the eco2mix and temperature datasets, missing values |
 | Préparation des données | How the raw data was cleaned and reshaped |
-| Analyses et visualisations | Production mix, renewables by region, load and coverage factors, regional exchanges, daily consumption profile, European comparison (Eurostat). Energy is shown in TWh. |
+| Analyses et visualisations | Key figures, then production mix, renewables by region, load and coverage factors, regional exchanges, daily consumption profile, European comparison (Eurostat). Energy is shown in TWh. |
 | Modélisation et prédictions | Consumption forecast for a region, date, time and temperatures, with the model's test metrics and a temperature curve |
 | Conclusion | Takeaways and challenges for 2050 |
 | Ressources | Data sources and tools |
@@ -74,7 +74,7 @@ ruff check .
 python -m pytest
 ```
 
-The 41 tests (about 25 seconds) check that the seven pages run without exceptions, that every option of the Analyses page renders, that the prediction works and reacts to temperature, and that the pinned dependencies install without conflicts.
+The 52 tests (about 35 seconds) check that the seven pages run without exceptions, that each page has its own URL, that every option of the Analyses page renders, that the prediction works and reacts to temperature, and that the pinned dependencies install without conflicts.
 
 GitHub Actions runs `pip check`, `ruff check` and the tests on every push and pull request (`.github/workflows/tests.yml`). The `main` branch only accepts pull requests whose tests pass. Dependabot proposes dependency updates once a month (`.github/dependabot.yml`).
 
@@ -96,7 +96,7 @@ The app stays under about 700 MB of RAM: the large Parquet files are aggregated 
 
 ```
 hexa-watts/
-├── content/                 # One module per page, plus the model features (caracteristiques.py)
+├── content/                 # One module per page, the model features (caracteristiques.py) and shared UI helpers (interface.py)
 ├── datasets/                # eco2mix, temperatures, load factors and Eurostat data
 ├── docs/                    # Screenshot for this README
 ├── images/                  # Images shown in the app
@@ -104,6 +104,7 @@ hexa-watts/
 ├── scripts/                 # Model training script
 ├── tests/                   # pytest and Streamlit AppTest
 ├── .github/                 # Tests workflow and Dependabot settings
+├── .streamlit/config.toml   # Theme: colors, fonts and corner radius
 ├── streamlit_app.py         # Entry point and navigation
 ├── requirements.txt         # Pinned dependencies of the app
 ├── requirements-dev.txt     # Plus test and lint tools

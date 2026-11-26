@@ -15,7 +15,7 @@ st.set_page_config(
     page_title="Hexa Watts",
     page_icon="images/icone.svg",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="auto",
 )
 
 # Pages de l'application

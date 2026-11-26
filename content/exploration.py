@@ -2,14 +2,14 @@
 Creation of the "Exploration des données" page for the Hexa Watts application
 """
 
-import streamlit as st
-
-from content.interface import en_tete
+import pandas as pd
+import plotly.express as px
 import pyarrow as pa
 import pyarrow.compute as pc
 import pyarrow.parquet as pq
-import pandas as pd
+import streamlit as st
 
+from content.interface import en_tete, graphique, indicateurs, nombre_fr
 from content.memoire import liberer_memoire
 
 
@@ -52,10 +52,11 @@ def load_main_dataset_summary(filepath, n_head=5):
     liberer_memoire()
 
     nan_count = pd.Series(nan_count)
-    nan_info = pd.concat(
-        [nan_count, (nan_count / n_rows * 100).round(2)],
-        axis=1,
-        keys=["NaN Count", "% of NaN"],
+    nan_info = pd.DataFrame(
+        {
+            "Valeurs manquantes": nan_count,
+            "Remplissage (%)": (100 - nan_count / n_rows * 100).round(2),
+        }
     )
     return {"n_rows": n_rows, "n_cols": len(columns), "head": head, "nan_info": nan_info}
 
@@ -104,21 +105,47 @@ def exploration():
             st.error(f"Une erreur inattendue s'est produite : {str(e)}")
             return
 
-    # Display information about the main dataset
-    st.subheader("Aperçu du jeu de données principal : Eco2Mix (RTE)")
-    st.write("Nombre de lignes :", summary["n_rows"])
-    st.write("Nombre de colonnes :", summary["n_cols"])
-    st.write("Échantillon de données :")
-    st.dataframe(summary["head"])
+    # Jeu principal
+    st.subheader("Jeu de données principal : Eco2Mix (RTE)")
+    indicateurs(
+        [
+            ("Lignes", nombre_fr(summary["n_rows"]), "une par région et par demi-heure"),
+            ("Colonnes", str(summary["n_cols"]), None),
+            ("Températures", nombre_fr(temp.shape[0]), "relevés journaliers par région"),
+        ]
+    )
+    st.dataframe(summary["head"], hide_index=True)
 
-    # Display missing value information
-    st.subheader("Aperçu des valeurs manquantes")
-    st.write(summary["nan_info"])
+    # Valeurs manquantes
+    graphique(graphique_remplissage(summary["nan_info"]))
+    with st.expander("Nombre de valeurs manquantes par colonne"):
+        st.dataframe(summary["nan_info"])
 
-    # Display information about the temperature dataset
-    st.subheader("Aperçu du jeu de données des températures")
-    st.write("Nombre de lignes :", temp.shape[0])
-    st.write("Nombre de colonnes :", temp.shape[1])
-    st.write("Échantillon de données :")
-    st.dataframe(temp.head())
-    st.write("Nombre de valeurs manquantes :", temp.isna().sum().sum())
+    # Températures
+    st.subheader("Jeu de données des températures")
+    manquantes = int(temp.isna().sum().sum())
+    st.caption(
+        f"{temp.shape[0]} lignes, {temp.shape[1]} colonnes, "
+        + ("aucune valeur manquante." if manquantes == 0 else f"{manquantes} valeurs manquantes.")
+    )
+    st.dataframe(temp.head(), hide_index=True)
+
+
+def graphique_remplissage(nan_info):
+    """Taux de remplissage de chaque colonne, les moins remplies en haut."""
+    remplissage = nan_info["Remplissage (%)"].sort_values(ascending=False)
+    incompletes = int((remplissage < 100).sum())
+    fig = px.bar(
+        x=remplissage.to_numpy(),
+        y=remplissage.index,
+        orientation="h",
+        title=f"{incompletes} colonnes sur {len(remplissage)} ont des valeurs manquantes",
+        labels={"x": "Taux de remplissage (%)", "y": ""},
+        height=max(360, 140 + 22 * len(remplissage)),
+    )
+    fig.update_traces(
+        marker_color=["#2E5EAA" if v == 100 else "#F39237" for v in remplissage],
+        hovertemplate="%{y} : %{x:.2f} %<extra></extra>",
+    )
+    fig.update_xaxes(range=[0, 100])
+    return fig

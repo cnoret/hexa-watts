@@ -9,15 +9,20 @@ import joblib
 import numpy as np
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
+import pyarrow.parquet as pq
 import streamlit as st
 
-from content.interface import en_tete, graphique
-
 from content.caracteristiques import REGIONS, construire_caracteristiques
+from content.interface import en_tete, graphique
+from content.memoire import liberer_memoire
 
 CHEMIN_MODELE = "models/modele_consommation.joblib"
 CHEMIN_METRIQUES = "models/metriques.json"
 CHEMIN_TEMPERATURES = "datasets/temp.csv"
+CHEMIN_CONSOMMATIONS = "datasets/df_modified.parquet"
+# Semaine proposée par défaut pour comparer prédiction et réalité : une semaine froide
+SEMAINE_PAR_DEFAUT = datetime.date(2021, 1, 11)
 COLONNES_TEMPERATURES = ["TMin (°C)", "TMoy (°C)", "TMax (°C)"]
 
 # Jours de part et d'autre de la date choisie, toutes années confondues :
@@ -204,8 +209,8 @@ def show_metrics(metriques):
         delta=format_mw(test["rmse"] - reference["rmse"], signe=True), delta_color="inverse", border=True,
     )
     col3.metric(
-        "R²", f"{test['r2']:.3f}",
-        delta=f"{test['r2'] - reference['r2']:+.3f}", border=True,
+        "R²", f"{test['r2']:.3f}".replace(".", ","),
+        delta=f"{test['r2'] - reference['r2']:+.3f}".replace(".", ","), border=True,
     )
     col4.metric(
         "Erreur relative moyenne (MAPE)", format_pct(test["mape"]),
@@ -284,6 +289,92 @@ def show_temperature_effect(model, user_input, temperatures):
     graphique(fig, width="stretch")
 
 
+@st.cache_data(show_spinner="Comparaison avec la consommation réelle...", max_entries=24)
+def semaine_reelle_et_predite(region, lundi):
+    """
+    Consommation réelle et prédite d'une région, par demi-heure, sur une semaine.
+
+    Le modèle reçoit les températures réellement relevées ces jours-là, comme
+    lors de la mesure de ses performances.
+    """
+    dates = [(lundi + datetime.timedelta(days=i)).isoformat() for i in range(7)]
+    conso = pq.read_table(
+        CHEMIN_CONSOMMATIONS,
+        columns=["Région", "Date", "Heure", "Consommation (MW)"],
+        filters=[("Région", "==", region), ("Date", "in", dates)],
+    ).to_pandas()
+    liberer_memoire()
+    conso["Date"] = pd.to_datetime(conso["Date"])
+    heure = conso["Heure"].str.split(":", expand=True).astype(int)
+    conso["Heure"] = heure[0] + heure[1] / 60
+
+    temperatures = load_temperatures()
+    conso = conso.merge(
+        temperatures[["Date", "Région", *COLONNES_TEMPERATURES]], on=["Région", "Date"]
+    ).sort_values(["Date", "Heure"], ignore_index=True)
+    X = construire_caracteristiques(
+        conso["Région"], conso["Date"], conso["Heure"],
+        conso["TMin (°C)"], conso["TMoy (°C)"], conso["TMax (°C)"],
+    )
+    return pd.DataFrame(
+        {
+            "Moment": conso["Date"] + pd.to_timedelta(conso["Heure"], unit="h"),
+            "Réelle": conso["Consommation (MW)"],
+            "Prédite": load_model().predict(X),
+        }
+    )
+
+
+def lundis_de_test(metriques):
+    """Lundis des semaines entièrement comprises dans la période de test."""
+    debut, fin = (datetime.date.fromisoformat(d) for d in metriques["periode_test"])
+    lundi = debut + datetime.timedelta(days=(7 - debut.weekday()) % 7)
+    lundis = []
+    while lundi + datetime.timedelta(days=6) <= fin:
+        lundis.append(lundi)
+        lundi += datetime.timedelta(days=7)
+    return lundis
+
+
+def show_real_vs_predicted(model, metriques, region):
+    """Prédiction et consommation réelle sur une semaine que le modèle n'a pas vue."""
+    st.subheader("Le modèle face à la réalité")
+    st.markdown(
+        f"Consommation de **{region}** sur une semaine de la période de test, que le modèle "
+        "n'a pas vue pendant l'apprentissage. Il reçoit les températures relevées ces jours-là."
+    )
+    lundis = lundis_de_test(metriques)
+    lundi = st.select_slider(
+        "Semaine",
+        options=lundis,
+        value=min(lundis, key=lambda d: abs(d - SEMAINE_PAR_DEFAUT)),
+        format_func=lambda d: f"du {d.strftime('%d/%m/%Y')}",
+    )
+    semaine = semaine_reelle_et_predite(region, lundi)
+    if semaine.empty:
+        st.info("Pas de données pour cette semaine.", icon=":material/info:")
+        return
+    ecart = (
+        (semaine["Prédite"] - semaine["Réelle"]).abs() / semaine["Réelle"]
+    ).mean()
+    fig = go.Figure(
+        [
+            go.Scatter(x=semaine["Moment"], y=semaine["Réelle"], name="Consommation réelle",
+                       line=dict(color="#1B2333", width=2)),
+            go.Scatter(x=semaine["Moment"], y=semaine["Prédite"], name="Prédiction du modèle",
+                       line=dict(color="#2E5EAA", width=2, dash="dot")),
+        ]
+    )
+    fig.update_layout(
+        title=f"Sur cette semaine, le modèle s'écarte en moyenne de {format_pct(ecart)}",
+        yaxis_title="Consommation (MW)",
+        hovermode="x unified",
+        height=420,
+    )
+    fig.update_xaxes(dtick=86_400_000, tickformat="%d/%m")
+    graphique(fig)
+
+
 def modelisation():
     """
     Main function to handle the "Modélisation" page.
@@ -342,11 +433,21 @@ def modelisation():
         )
         prediction = model.predict(X)[0]
         mape = metriques["test"]["mape"]
-        st.success(
-            f"Consommation prédite : **{format_mw(prediction)}**\n\n"
+        resultat, explication = st.columns([1, 2], vertical_alignment="center")
+        resultat.metric(
+            f"Consommation prédite · {user_input['region']}",
+            format_mw(prediction),
+            f"± {format_mw(prediction * mape)}",
+            delta_color="off",
+            delta_arrow="off",
+            border=True,
+        )
+        explication.caption(
             f"Sur le jeu de test, les prédictions s'écartent en moyenne de {format_pct(mape)} "
             f"de la consommation réelle (MAPE), soit environ ± {format_mw(prediction * mape)} "
-            "à ce niveau. L'écart d'une prédiction isolée peut être plus grand.",
-            icon=":material/bolt:",
+            "à ce niveau. L'écart d'une prédiction isolée peut être plus grand."
         )
         show_temperature_effect(model, user_input, temperatures)
+
+    st.divider()
+    show_real_vs_predicted(model, metriques, user_input["region"])

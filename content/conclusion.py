@@ -46,19 +46,21 @@ def conclusion():
     col1, col2 = st.columns(2)
     with col1:
         st.warning(
-            """
-            **⚠️ Vigilance face au greenwashing**
+            icon=":material/warning:",
+            body="""
+            **Vigilance face au greenwashing**
             - Adoptez des comportements réellement respectueux de l'environnement.
             - Conduire un SUV électrique, par exemple, ne garantit pas un mode de vie durable.
-            """
+            """,
         )
     with col2:
         st.warning(
-            """
-            **⚠️ Dépendance au nucléaire**
+            icon=":material/warning:",
+            body="""
+            **Dépendance au nucléaire**
             - Fragilité face aux risques géopolitiques.
             - Exemple : Guerre en Ukraine ou coup d'État au Niger affectant l'approvisionnement.
-            """
+            """,
         )
 
     st.divider()

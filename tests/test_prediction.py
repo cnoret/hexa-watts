@@ -91,12 +91,19 @@ def test_courbe_de_chauffage_decroissante(modele):
 # --- Page Modélisation --------------------------------------------------------
 
 
+def carte_prediction(at):
+    """Carte affichée après le clic sur Prédire."""
+    cartes = [m for m in at.metric if m.label.startswith("Consommation prédite")]
+    assert len(cartes) == 1, "Aucune prédiction affichée"
+    return cartes[0]
+
+
 def lire_mw(at):
-    """Valeur en MW du message de succès affiché après le clic sur Prédire."""
-    assert len(at.success) == 1, "Aucune prédiction affichée"
-    chiffres = re.search(r"\*\*([\d ]+) MW\*\*", at.success[0].value)
-    assert chiffres, at.success[0].value
-    return int(chiffres.group(1).replace(" ", ""))
+    """Valeur en MW de la carte de prédiction."""
+    valeur = carte_prediction(at).value
+    chiffres = re.fullmatch(r"([\d\u202f]+) MW", valeur)
+    assert chiffres, valeur
+    return int(chiffres.group(1).replace("\u202f", ""))
 
 
 def prediction_dans_la_page(tmin, tmoy, tmax):
@@ -110,8 +117,9 @@ def prediction_dans_la_page(tmin, tmoy, tmax):
     at.button[0].click().run()
     sans_exception(at)
     assert not at.warning, [w.value for w in at.warning]
-    # La courbe de l'effet de la température s'affiche avec la prédiction
-    assert at.get("plotly_chart")
+    # La courbe de l'effet de la température s'affiche avec la prédiction,
+    # en plus de la comparaison avec la consommation réelle
+    assert len(at.get("plotly_chart")) >= 2
     return lire_mw(at)
 
 
@@ -189,6 +197,19 @@ def test_page_modelisation_libelle_la_mape():
     at = page_app("modelisation").run()
     at.button[0].click().run()
     sans_exception(at)
-    message = at.success[0].value
+    carte_prediction(at)
+    message = next(c.value for c in at.caption if "MAPE" in c.value)
     assert "MAPE" in message and "± 6" not in message
     assert "5,5\u202f%" in message
+
+
+def test_page_modelisation_compare_a_la_realite():
+    """La semaine de test s'affiche, prédiction proche de la consommation réelle."""
+    from content.modelisation import load_metrics, lundis_de_test, semaine_reelle_et_predite
+
+    lundis = lundis_de_test(load_metrics())
+    assert len(lundis) >= 50
+    semaine = semaine_reelle_et_predite("Île-de-France", lundis[10])
+    assert len(semaine) == 7 * 48
+    ecart = ((semaine["Prédite"] - semaine["Réelle"]).abs() / semaine["Réelle"]).mean()
+    assert ecart < 0.15

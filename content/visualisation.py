@@ -1,22 +1,43 @@
 """
-Creation of the "Visualisation" page for the Hexa Watts application
+Page « Analyses et visualisations » de l'application Hexa Watts.
+
+Les données sont agrégées une fois (et mises en cache) par année, puis
+filtrées selon la période choisie dans la barre latérale. Chaque graphique
+est construit par une fonction du module, à partir de ces petites tables.
 """
 
-import streamlit as st
+import json
+
 import pandas as pd
-import plotly.graph_objects as go
 import plotly.express as px
+import plotly.graph_objects as go
 import pyarrow.compute as pc
 import pyarrow.parquet as pq
+import streamlit as st
 
+from content.caracteristiques import REGIONS
 from content.couleurs import COULEURS_EUROPE, COULEURS_FILIERES
-from content.interface import en_tete, graphique, indicateurs, nombre_fr
+from content.interface import (
+    a_retenir,
+    en_tete,
+    graphique,
+    indicateurs,
+    mettre_en_avant,
+    nombre_fr,
+)
 from content.memoire import liberer_memoire
-
+from content.textes_analyses import DETAILS
 
 # Couleurs des filières (partagées avec la page Préparation)
 colors = COULEURS_FILIERES
 colors_euro = COULEURS_EUROPE
+
+PREMIERE_ANNEE, DERNIERE_ANNEE = 2013, 2021
+# Les échanges physiques de 2021 sont vides ou décalés dans le fichier
+DERNIERE_ANNEE_ECHANGES = 2020
+CHEMIN_REGIONS = "datasets/regions.geojson"
+# 12 régions : la palette par défaut n'a que 10 couleurs
+PALETTE_REGIONS = px.colors.qualitative.Dark24
 
 PROD_COLS = [
     "Thermique (MW)",
@@ -121,11 +142,12 @@ def _aggregate(table, keys, columns, how="sum"):
 def load_eco2mix_aggregates(filepath="datasets/df_modified.parquet"):
     """
     Lit uniquement les colonnes utiles du jeu Eco2Mix et renvoie les petites
-    tables agrégées dont les graphiques ont besoin.
+    tables agrégées dont les graphiques ont besoin, toutes par année pour
+    pouvoir filtrer la période ensuite.
 
     Le jeu complet (1,9 million de lignes, environ 550 Mo en mémoire) n'est
-    jamais conservé : seul le résultat agrégé, de quelques centaines de lignes,
-    est mis en cache.
+    jamais conservé : seul le résultat agrégé, de quelques milliers de lignes
+    au plus, est mis en cache.
     """
     columns = [
         "Région",
@@ -141,23 +163,20 @@ def load_eco2mix_aggregates(filepath="datasets/df_modified.parquet"):
 
     # Les sommes de MW sont converties en TWh (voir HEURES_PAR_PAS)
 
-    # Production par année et par filière (PF1, PF2)
+    # Production par année et par filière (PF1, PF2, indicateurs)
     prod_yearly = _en_twh(
         _aggregate(table, ["Année"], PROD_COLS), PROD_COLS
     ).set_index("Année")
 
-    # Production par région et par filière : verte (PF3, PF4), nucléaire (PF6)
-    prod_region = _en_twh(_aggregate(table, ["Région"], PROD_COLS), PROD_COLS)
-    green = prod_region[["Région"] + GREEN_NAMES]
-    nucleaire = prod_region[["Région", "Nucléaire"]]
+    # Production par région, par année et par filière (PF3, PF4, PF6)
+    prod_region = _en_twh(_aggregate(table, ["Région", "Année"], PROD_COLS), PROD_COLS)
 
-    # Solde des échanges physiques par région et par année (DF1), sans 2021 :
-    # dans le fichier, la colonne est vide ou décalée pour cette année-là
+    # Solde des échanges physiques par région et par année (DF1, carte), sans 2021
     distrib = _en_twh(
         _aggregate(table, ["Région", "Année"], ["Ech. physiques (MW)"]),
         ["Ech. physiques (MW)"],
     )
-    distrib = distrib[distrib["Année"] != 2021].reset_index(drop=True)
+    distrib = distrib[distrib["Année"] <= DERNIERE_ANNEE_ECHANGES].reset_index(drop=True)
 
     # Journée type par année (CF4)
     df_daily = _aggregate(table, ["Heure", "Année"], ["Consommation (MW)"], "mean")
@@ -168,24 +187,21 @@ def load_eco2mix_aggregates(filepath="datasets/df_modified.parquet"):
         ["Consommation (MW)"],
     )
 
-    # Consommation par mois, en moyenne sur les années étudiées (CF2)
-    nb_annees = len(pc.unique(table["Année"]))
+    # Consommation par mois et par année (CF2)
     cons_monthly = _en_twh(
-        _aggregate(table, ["Mois"], ["Consommation (MW)"]), ["Consommation (MW)"]
+        _aggregate(table, ["Mois", "Année"], ["Consommation (MW)"]), ["Consommation (MW)"]
     )
-    cons_monthly["Consommation"] /= nb_annees
     cons_monthly["Mois"] = pd.Categorical(
         cons_monthly["Mois"].map(MOIS_FR), categories=MONTH_ORDER, ordered=True
     )
-    cons_monthly = cons_monthly.sort_values("Mois").reset_index(drop=True)
 
-    # Puissance moyenne appelée en France par jour et tranche horaire (CF3).
+    # Puissance moyenne appelée en France par jour, tranche horaire et année (CF3).
     # Chaque demi-heure compte une ligne par région : la moyenne d'une ligne
     # multipliée par le nombre de régions donne la consommation nationale.
-    weekly = _aggregate(table, ["Jour", "Heure"], ["Consommation (MW)"], "mean")
+    weekly = _aggregate(table, ["Jour", "Heure", "Année"], ["Consommation (MW)"], "mean")
     weekly["Période"] = weekly["Heure"].map(_periode)
     weekly = (
-        weekly.groupby(["Jour", "Période"])["Consommation (MW)"].mean()
+        weekly.groupby(["Jour", "Période", "Année"])["Consommation (MW)"].mean()
         * NB_REGIONS / 1000
     ).rename("Consommation (GW)").reset_index()
     weekly["Jour"] = pd.Categorical(
@@ -194,11 +210,10 @@ def load_eco2mix_aggregates(filepath="datasets/df_modified.parquet"):
     weekly["Période"] = pd.Categorical(
         weekly["Période"], categories=[p[0] for p in PERIODES], ordered=True
     )
-    weekly = weekly.sort_values(["Période", "Jour"]).reset_index(drop=True)
 
-    # Production et consommation totales par région (PCF1)
+    # Production et consommation par région et par année (PCF1)
     consprod = _en_twh(
-        _aggregate(table, ["Région"], ["Consommation (MW)", "Production (MW)"]),
+        _aggregate(table, ["Région", "Année"], ["Consommation (MW)", "Production (MW)"]),
         ["Consommation (MW)", "Production (MW)"],
     )
 
@@ -207,8 +222,7 @@ def load_eco2mix_aggregates(filepath="datasets/df_modified.parquet"):
 
     return {
         "prod_yearly": prod_yearly,
-        "green": green,
-        "nucleaire": nucleaire,
+        "prod_region": prod_region,
         "distrib": distrib,
         "df_daily": df_daily,
         "consprod": consprod,
@@ -220,18 +234,14 @@ def load_eco2mix_aggregates(filepath="datasets/df_modified.parquet"):
 
 @st.cache_data(show_spinner="Préparation des taux de charge...")
 def load_tco_tch_aggregates(filepath="datasets/tco_tch.parquet"):
-    """Moyennes mensuelles par région des taux de charge et de couverture."""
+    """Moyennes mensuelles par région et par année des taux de charge et de couverture."""
     measures = ["TCH Solaire (%)", "TCH Eolien (%)", "TCO Nucléaire (%)"]
-    tco_tch = pq.read_table(filepath, columns=["Région", "Mois"] + measures).to_pandas()
-
-    grouped = {}
-    for measure in measures:
-        table = tco_tch.groupby(["Région", "Mois"])[measure].mean().reset_index()
-        table["Mois"] = pd.Categorical(
-            table["Mois"].map(MOIS_FR), categories=MONTH_ORDER, ordered=True
-        )
-        grouped[measure] = table.sort_values(by="Mois")
-
+    tco_tch = pq.read_table(filepath, columns=["Date", "Région", "Mois"] + measures).to_pandas()
+    tco_tch["Année"] = pd.to_datetime(tco_tch.pop("Date")).dt.year
+    grouped = tco_tch.groupby(["Région", "Année", "Mois"])[measures].mean().reset_index()
+    grouped["Mois"] = pd.Categorical(
+        grouped["Mois"].map(MOIS_FR), categories=MONTH_ORDER, ordered=True
+    )
     del tco_tch
     liberer_memoire()
     return grouped
@@ -251,37 +261,456 @@ def load_europe_data(filepath="datasets/EUROPE_DATA.csv"):
     return europe
 
 
-def _indicateurs_cles(aggregates):
-    """Indicateurs clés de la production, calculés à partir des données."""
-    prod = aggregates["prod_yearly"]
-    premiere, derniere = prod.index.min(), prod.index.max()
-    total = prod.sum(axis=1)
-    part_nucleaire = prod["Nucléaire"] / total * 100
-    part_verte = prod[GREEN_NAMES].sum(axis=1) / total * 100
-    conso = aggregates["cons_yearly"].groupby("Année")["Consommation"].sum()
+@st.cache_data
+def load_regions(filepath=CHEMIN_REGIONS):
+    """Contours simplifiés des régions métropolitaines (GeoJSON de Grégoire David)."""
+    with open(filepath, encoding="utf-8") as f:
+        return json.load(f)
+
+
+# --- Filtres -----------------------------------------------------------------
+
+
+def filtrer(df, debut, fin, colonne="Année"):
+    """Lignes dont l'année est comprise entre debut et fin (incluses)."""
+    annees = df.index if colonne is None else df[colonne]
+    return df[(annees >= debut) & (annees <= fin)]
+
+
+def libelle_periode(debut, fin):
+    """« en 2018 » ou « de 2013 à 2021 »."""
+    return f"en {debut}" if debut == fin else f"de {debut} à {fin}"
+
+
+def filtres():
+    """Filtres de la barre latérale : période et région mise en avant."""
+    with st.sidebar:
+        st.markdown("**Filtres**")
+        debut, fin = st.slider(
+            "Période",
+            min_value=PREMIERE_ANNEE,
+            max_value=DERNIERE_ANNEE,
+            value=(PREMIERE_ANNEE, DERNIERE_ANNEE),
+            key="analyses_periode",
+        )
+        choix = st.selectbox(
+            "Région mise en avant",
+            ["Aucune"] + REGIONS,
+            key="analyses_region",
+            help="Les autres régions passent en gris dans les graphiques par région.",
+        )
+    return debut, fin, None if choix == "Aucune" else choix
+
+
+def _indicateurs_cles(prod_yearly, cons_yearly):
+    """Indicateurs clés de la période choisie : dernière année comparée à la première."""
+    premiere, derniere = prod_yearly.index.min(), prod_yearly.index.max()
+    total = prod_yearly.sum(axis=1)
+    part_nucleaire = prod_yearly["Nucléaire"] / total * 100
+    part_verte = prod_yearly[GREEN_NAMES].sum(axis=1) / total * 100
+    conso = cons_yearly.groupby("Année")["Consommation"].sum()
 
     def ecart(serie):
+        if premiere == derniere:
+            return None
         return f"{nombre_fr(serie[derniere] - serie[premiere], 1, signe=True)} pts depuis {premiere}"
+
+    def rappel(serie):
+        if premiere == derniere:
+            return None
+        return f"{nombre_fr(serie[premiere])} TWh en {premiere}"
 
     indicateurs(
         [
-            (f"Production {derniere}", f"{nombre_fr(total[derniere])} TWh",
-             f"{nombre_fr(total[premiere])} TWh en {premiere}"),
-            (f"Consommation {derniere}", f"{nombre_fr(conso[derniere])} TWh",
-             f"{nombre_fr(conso[premiere])} TWh en {premiere}"),
-            ("Part du nucléaire", f"{nombre_fr(part_nucleaire[derniere], 1)} %",
+            (f"Production {derniere}", f"{nombre_fr(total[derniere])} TWh", rappel(total)),
+            (f"Consommation {derniere}", f"{nombre_fr(conso[derniere])} TWh", rappel(conso)),
+            (f"Part du nucléaire {derniere}", f"{nombre_fr(part_nucleaire[derniere], 1)} %",
              ecart(part_nucleaire)),
-            ("Part renouvelable", f"{nombre_fr(part_verte[derniere], 1)} %",
+            (f"Part renouvelable {derniere}", f"{nombre_fr(part_verte[derniere], 1)} %",
              ecart(part_verte)),
         ]
     )
 
 
+# --- Graphiques : production --------------------------------------------------
+
+
+def _hauteur_barres(n):
+    """Hauteur d'un graphique en barres horizontales de n catégories."""
+    return max(360, 140 + 26 * n)
+
+
+def graphique_mix(prod, periode):
+    """PF1 : part de chaque filière dans la production annuelle."""
+    part = prod.divide(prod.sum(axis=1), axis=0) * 100
+    part_nucleaire = prod["Nucléaire"].sum() / prod.to_numpy().sum() * 100
+    fig = go.Figure(
+        [
+            go.Bar(x=part.index, y=part[filiere], name=filiere,
+                   marker_color=colors[filiere],
+                   hovertemplate="%{x} : %{y:.1f} %<extra>" + filiere + "</extra>")
+            for filiere in part.columns
+        ]
+    )
+    fig.update_layout(
+        barmode="stack",
+        title=f"Le nucléaire fournit {nombre_fr(part_nucleaire)} % de l'électricité produite {periode}",
+        xaxis=dict(title="Année", dtick=1),
+        yaxis_title="Part de la production (%)",
+    )
+    return fig
+
+
+def graphique_renouvelables(prod, periode):
+    """PF2 : production renouvelable par année et par filière."""
+    verte = prod[GREEN_NAMES]
+    total = verte.sum(axis=1)
+    if len(total) > 1:
+        titre = (
+            f"La production renouvelable passe de {nombre_fr(total.iloc[0])} TWh "
+            f"en {total.index[0]} à {nombre_fr(total.iloc[-1])} TWh en {total.index[-1]}"
+        )
+    else:
+        titre = f"Production renouvelable : {nombre_fr(total.iloc[0])} TWh {periode}"
+    fig = px.bar(
+        verte.reset_index(),
+        x="Année",
+        y=GREEN_NAMES,
+        title=titre,
+        labels={"value": "Production (TWh)", "variable": "Filière"},
+        color_discrete_map=colors,
+    )
+    fig.update_layout(barmode="stack", xaxis_dtick=1)
+    return fig
+
+
+def graphique_renouvelables_regions(prod_region, periode, region):
+    """PF3 : production renouvelable cumulée par région, en barres horizontales triées."""
+    verte = prod_region.groupby("Région")[GREEN_NAMES].sum()
+    verte = verte.loc[verte.sum(axis=1).sort_values().index]
+    premiere = verte.index[-1]
+    fig = px.bar(
+        verte.reset_index(),
+        y="Région",
+        x=GREEN_NAMES,
+        orientation="h",
+        title=f"Production renouvelable par région {periode} : {premiere} en tête",
+        labels={"value": "Production cumulée (TWh)", "variable": "Filière", "Région": ""},
+        color_discrete_map=colors,
+        height=_hauteur_barres(len(verte)),
+    )
+    fig.update_layout(barmode="stack")
+    return mettre_en_avant(fig, region)
+
+
+def graphique_filiere_regions(prod_region, filiere, periode):
+    """PF4 : répartition d'une filière renouvelable entre les régions."""
+    parts = prod_region.groupby("Région")[filiere].sum().reset_index()
+    fig = px.pie(
+        parts,
+        names="Région",
+        values=filiere,
+        # Du vert foncé au vert moyen : les verts très clairs ne se voient pas sur fond blanc
+        color_discrete_sequence=px.colors.sample_colorscale(
+            "Greens", [1 - i / 16 for i in range(12)]
+        ),
+        title=f"Répartition de la production {filiere.lower()} par région, {periode}",
+    )
+    return fig
+
+
+def graphique_nucleaire_regions(prod_region, periode, region):
+    """PF6 : production nucléaire cumulée des régions qui ont des centrales."""
+    nucleaire = prod_region.groupby("Région")["Nucléaire"].sum()
+    nucleaire = nucleaire[nucleaire > 0].sort_values()
+    fig = px.bar(
+        nucleaire.reset_index(),
+        y="Région",
+        x="Nucléaire",
+        orientation="h",
+        title=f"Seules {len(nucleaire)} régions produisent de l'électricité nucléaire",
+        labels={"Nucléaire": f"Production cumulée {periode} (TWh)", "Région": ""},
+        color_discrete_sequence=[colors["Nucléaire"]],
+        height=_hauteur_barres(len(nucleaire)),
+    )
+    return mettre_en_avant(fig, region)
+
+
+# --- Graphiques : taux de charge et de couverture -----------------------------
+
+
+def graphique_taux(tco_tch, mesure, titre, region):
+    """TCF1 à TCF3 : moyenne mensuelle d'un taux, par région."""
+    moyennes = tco_tch.groupby(["Région", "Mois"], observed=True)[mesure].mean().reset_index()
+    fig = px.line(
+        moyennes.sort_values("Mois"),
+        x="Mois",
+        y=mesure,
+        color="Région",
+        title=titre,
+        labels={mesure: f"{mesure.split(' (')[0]} moyen (%)", "Mois": ""},
+        color_discrete_sequence=PALETTE_REGIONS,
+        category_orders={"Région": REGIONS},
+    )
+    return mettre_en_avant(fig, region)
+
+
+# --- Graphiques : consommation ------------------------------------------------
+
+
+def graphique_conso_regions(cons_yearly, region):
+    """CF1 : consommation annuelle par région."""
+    ordre = cons_yearly.groupby("Région")["Consommation"].sum().sort_values(ascending=False)
+    fig = px.line(
+        cons_yearly,
+        x="Année",
+        y="Consommation",
+        color="Région",
+        markers=True,
+        title=f"Consommation annuelle par région : {ordre.index[0]} en tête",
+        labels={"Consommation": "Consommation (TWh)"},
+        color_discrete_sequence=PALETTE_REGIONS,
+        category_orders={"Région": ordre.index.tolist()},
+    )
+    fig.update_layout(height=520, xaxis_dtick=1)
+    return mettre_en_avant(fig, region)
+
+
+def graphique_conso_mois(cons_monthly, periode):
+    """CF2 : consommation moyenne de chaque mois sur la période."""
+    par_mois = (
+        cons_monthly.groupby("Mois", observed=True)["Consommation"].mean().reset_index()
+    )
+    haut = par_mois.loc[par_mois["Consommation"].idxmax()]
+    bas = par_mois.loc[par_mois["Consommation"].idxmin()]
+    ratio = haut["Consommation"] / bas["Consommation"]
+    fig = px.bar(
+        par_mois,
+        x="Mois",
+        y="Consommation",
+        title=(
+            f"En {haut['Mois'].lower()}, la France consomme {nombre_fr(ratio, 1)} fois "
+            f"plus qu'en {bas['Mois'].lower()} (moyenne {periode})"
+        ),
+        labels={"Consommation": "Consommation moyenne (TWh)", "Mois": ""},
+        color="Consommation",
+        color_continuous_scale=[[0, "#BFD3F2"], [1, "#2E5EAA"]],
+    )
+    fig.update_layout(coloraxis_showscale=False)
+    return fig
+
+
+def graphique_conso_semaine(weekly):
+    """CF3 : puissance appelée selon le jour et la tranche horaire."""
+    moyenne = (
+        weekly.groupby(["Période", "Jour"], observed=True)["Consommation (GW)"]
+        .mean()
+        .reset_index()
+    )
+    fig = px.line(
+        moyenne,
+        x="Jour",
+        y="Consommation (GW)",
+        color="Période",
+        markers=True,
+        title="La consommation baisse le week-end, surtout le dimanche",
+        labels={"Jour": "", "Consommation (GW)": "Puissance moyenne appelée (GW)"},
+    )
+    return fig
+
+
+def graphique_journee(df_daily):
+    """CF4 : profil moyen d'une journée, par année."""
+    fig = px.line(
+        df_daily,
+        x="Heure",
+        y="Consommation (MW)",
+        color="Année",
+        title="Profil d'une journée type : un creux la nuit, deux pointes à midi et le soir",
+        labels={"Consommation (MW)": "Consommation moyenne par région (MW)", "Heure": ""},
+    )
+    fig.update_xaxes(dtick=4)
+    return fig
+
+
+def graphique_production_conso(consprod, periode, region):
+    """PCF1 : production et consommation cumulées par région, avec la diagonale."""
+    cumul = consprod.groupby("Région")[["Production", "Consommation"]].sum().reset_index()
+    borne = float(cumul[["Production", "Consommation"]].to_numpy().max()) * 1.05
+    fig = px.scatter(
+        cumul,
+        x="Production",
+        y="Consommation",
+        color="Région",
+        size="Production",
+        size_max=30,
+        title=f"Production et consommation par région, cumulées {periode}",
+        labels={"Production": "Production (TWh)", "Consommation": "Consommation (TWh)"},
+        color_discrete_sequence=PALETTE_REGIONS,
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=[0, borne], y=[0, borne], mode="lines", name="Production = consommation",
+            line=dict(color="#94A0B4", dash="dot", width=1), hoverinfo="skip",
+        )
+    )
+    fig.update_layout(height=520)
+    return mettre_en_avant(fig, region)
+
+
+# --- Graphiques : échanges ----------------------------------------------------
+
+
+def graphique_solde_region(distrib, region):
+    """DF1 : solde annuel des échanges physiques d'une région."""
+    # Solde annuel en TWh : positif = importations nettes,
+    # négatif = exportations nettes vers les autres régions et pays.
+    # Points en rouge (importatrice) ou bleu (exportatrice), comme sur la carte.
+    region_data = distrib[distrib["Région"] == region]
+    solde = region_data["Ech. physiques"]
+    fig = go.Figure(
+        go.Scatter(
+            x=region_data["Année"],
+            y=solde,
+            mode="lines+markers",
+            line=dict(color="#94A0B4"),
+            marker=dict(
+                size=10,
+                color=["#E4572E" if v > 0 else "#2E5EAA" for v in solde],
+            ),
+            hovertemplate="%{x} : %{y:.1f} TWh<extra></extra>",
+        )
+    )
+    fig.add_hline(y=0, line_color="#94A0B4", line_width=1)
+    fig.update_layout(
+        title=f"Solde annuel des échanges physiques : {region}",
+        xaxis_title="Année",
+        yaxis_title="Solde des échanges (TWh)<br>< 0 : exportatrice   > 0 : importatrice",
+        xaxis=dict(dtick=1),
+        height=460,
+    )
+    return fig
+
+
+def _contours(region_geo):
+    """Coordonnées x/y d'une région, polygones séparés par None (pour fill='toself')."""
+    geometrie = region_geo["geometry"]
+    polygones = (
+        [geometrie["coordinates"]]
+        if geometrie["type"] == "Polygon"
+        else geometrie["coordinates"]
+    )
+    xs, ys = [], []
+    for polygone in polygones:
+        contour = polygone[0]  # contour extérieur, sans les trous
+        xs += [point[0] for point in contour] + [None]
+        ys += [point[1] for point in contour] + [None]
+    return xs, ys
+
+
+def carte_echanges(distrib, regions, annee):
+    """
+    Carte du solde des échanges par région pour une année.
+
+    Les régions sont dessinées comme des polygones remplis sur des axes
+    simples : contrairement aux cartes « geo » de Plotly, aucun fond de carte
+    n'est téléchargé depuis un serveur extérieur.
+    """
+    soldes = distrib[distrib["Année"] == annee].set_index("Région")["Ech. physiques"]
+    borne = float(distrib["Ech. physiques"].abs().max())
+    echelle = px.colors.get_colorscale("RdBu_r")
+
+    def couleur(valeur):
+        return px.colors.sample_colorscale(echelle, [(valeur + borne) / (2 * borne)])[0]
+
+    fig = go.Figure()
+    for region_geo in regions["features"]:
+        nom = region_geo["properties"]["nom"]
+        if nom not in soldes:
+            continue
+        solde = soldes[nom]
+        xs, ys = _contours(region_geo)
+        sens = "importatrice" if solde > 0 else "exportatrice"
+        fig.add_trace(
+            go.Scatter(
+                x=xs, y=ys, fill="toself", mode="lines", name=nom,
+                fillcolor=couleur(solde), line=dict(color="white", width=1),
+                hoveron="fills",
+                text=f"{nom} : {nombre_fr(solde, 1, signe=True)} TWh ({sens})",
+                hoverinfo="text", showlegend=False,
+            )
+        )
+    # Trace invisible qui porte l'échelle de couleurs
+    fig.add_trace(
+        go.Scatter(
+            x=[None], y=[None], mode="markers", showlegend=False, hoverinfo="skip",
+            marker=dict(
+                colorscale=echelle, cmin=-borne, cmax=borne, color=[0],
+                colorbar=dict(title="Solde (TWh)", thickness=12),
+            ),
+        )
+    )
+    fig.update_xaxes(visible=False)
+    # Un degré de longitude vaut environ 0,69 degré de latitude en France
+    fig.update_yaxes(visible=False, scaleanchor="x", scaleratio=1.45)
+    fig.update_layout(
+        title=f"Régions importatrices en rouge, exportatrices en bleu ({annee})",
+        height=600,
+        margin=dict(l=0, r=0, b=0),
+    )
+    return fig
+
+
+# --- Graphiques : Europe ------------------------------------------------------
+
+
+def _barres_pays(df, mesure, titre):
+    """Énergie cumulée par pays et par type, en barres horizontales triées."""
+    par_type = df.groupby(["Pays", "Class"])["Énergie (TWh)"].sum().reset_index()
+    ordre = par_type.groupby("Pays")["Énergie (TWh)"].sum().sort_values()
+    fig = px.bar(
+        par_type,
+        y="Pays",
+        x="Énergie (TWh)",
+        color="Class",
+        orientation="h",
+        title=titre.format(premier=ordre.index[-1]),
+        labels={"Énergie (TWh)": f"{mesure} cumulée (TWh)", "Pays": "", "Class": "Type"},
+        category_orders={"Pays": ordre.index.tolist()[::-1]},
+        color_discrete_map=colors_euro,
+        height=_hauteur_barres(len(ordre)),
+    )
+    return fig
+
+
+def _barres_annees(df, mesure, titre):
+    """Énergie européenne par année et par type."""
+    par_annee = df.groupby(["Année", "Class"])["Énergie (TWh)"].sum().reset_index()
+    total = par_annee.groupby("Année")["Énergie (TWh)"].sum()
+    fig = px.bar(
+        par_annee,
+        x="Année",
+        y="Énergie (TWh)",
+        color="Class",
+        title=titre.format(debut=nombre_fr(total.iloc[0]), fin=nombre_fr(total.iloc[-1]),
+                           annee_debut=total.index[0], annee_fin=total.index[-1]),
+        labels={"Énergie (TWh)": f"{mesure} (TWh)", "Class": "Type"},
+        color_discrete_map=colors_euro,
+    )
+    fig.update_layout(barmode="stack", xaxis_dtick=1)
+    return fig
+
+
+# --- Page ---------------------------------------------------------------------
+
+
 def visualisation():
-    "Contenu de la page de la page visualisation"
+    """Contenu de la page Analyses et visualisations."""
     aggregates = load_eco2mix_aggregates()
-    green = aggregates["green"]
-    EUROPE_DATA = load_europe_data()
+    tco_tch = load_tco_tch_aggregates()
+    europe = load_europe_data()
+    debut, fin, region = filtres()
+    periode = libelle_periode(debut, fin)
 
     en_tete(
         "Analyses et visualisations",
@@ -289,548 +718,209 @@ def visualisation():
         sous_titre="Ce que la France produit, ce qu'elle consomme, et comment "
         "l'électricité circule entre les régions et en Europe.",
     )
-    _indicateurs_cles(aggregates)
 
-    def create_pf1_chart(prod):
-        # Notre première Data Viz PF1
-        # Production par année de toutes les énergies (déjà agrégée)
-
-        # Calcul de la production totale
-        prod_total = prod.sum(axis=1)
-
-        # Calcul du pourcentage de la production totale
-        prod_percentage = prod.divide(prod_total, axis=0) * 100
-
-        # Création d'un bar chart avec plotly pour la production secteur/année
-        trace_list = []
-        for sector in prod_percentage.columns:
-            trace = go.Bar(
-                x=prod_percentage.index,
-                y=prod_percentage[sector],
-                name=sector,
-                marker=dict(color=colors[sector]),
-            )
-            trace_list.append(trace)
-
-        # Personnalisation du graphique
-        layout = go.Layout(
-            barmode="stack",  # Barres empilées
-            title="Production par secteur, empilée par année (% du total)",
-            xaxis=dict(title="Année"),
-            yaxis=dict(title="Pourcentage de la production totale"),
+    prod_yearly = filtrer(aggregates["prod_yearly"], debut, fin, colonne=None)
+    prod_region = filtrer(aggregates["prod_region"], debut, fin)
+    cons_yearly = filtrer(aggregates["cons_yearly"], debut, fin)
+    _indicateurs_cles(prod_yearly, cons_yearly)
+    if (debut, fin) != (PREMIERE_ANNEE, DERNIERE_ANNEE):
+        st.caption(
+            f"Graphiques et indicateurs filtrés {periode}. Les encadrés « À retenir » "
+            f"commentent toute la période {PREMIERE_ANNEE}-{DERNIERE_ANNEE}."
         )
-
-        # Création puis affichage de la figure contenant nos 2 objets
-        fig = go.Figure(data=trace_list, layout=layout)
-
-        return fig
-
-    def create_pf2_chart(prod):
-        # Production verte par année (déjà agrégée)
-        green_yearly = prod[GREEN_NAMES]
-
-        # Reset the index to make 'Année' a regular column
-        green_yearly = green_yearly.reset_index()
-
-        fig = px.bar(
-            green_yearly,
-            x="Année",
-            y=green_yearly.columns[1:],  # Exclude 'Année' from the y-values
-            title="Évolution de la production d'électricité renouvelable par année",
-            labels={"Année": "Année", "value": "Production (TWh)", "variable": "Filière"},
-            height=400,
-            color_discrete_map=colors,
-        )
-
-        fig.update_layout(barmode="stack")
-
-        return fig
-
-    def create_pf3_chart(df):
-        # Création d'un DataFrame regroupant la production verte/région
-
-        fig = px.bar(
-            green,
-            x="Région",
-            y=green.columns[1:],
-            title="Production d'électricité renouvelable par région, cumulée de 2013 à 2021",
-            labels={"Région": "Région", "value": "Production (TWh)", "variable": "Filière"},
-            height=400,
-            color_discrete_map=colors,
-        )
-
-        fig.update_layout(barmode="stack")
-
-        return fig
-
-    def create_pf4_chart(df, type_energie):
-        try:
-            fig = px.pie(
-                df,
-                names="Région",
-                values=type_energie,
-                # Du vert foncé au vert moyen : les verts très clairs ne se voient pas sur fond blanc
-                color_discrete_sequence=px.colors.sample_colorscale(
-                    "Greens", [1 - i / 16 for i in range(12)]
-                ),
-                title=f"Répartition de la production {type_energie.lower()} par région (2013-2021)",
-            )
-            return fig
-        except Exception as e:
-            st.error(f"Il y a eu une erreur : {e}")
-            return None
-
-    def create_pf6_chart(nucleaire):
-        # Production nucléaire cumulée par région, de la plus forte à la plus faible
-        nucleaire = nucleaire.sort_values("Nucléaire", ascending=False)
-        fig = px.bar(
-            nucleaire,
-            x="Région",
-            y="Nucléaire",
-            title="Production d'électricité nucléaire par région, cumulée de 2013 à 2021",
-            labels={"Nucléaire": "Production (TWh)"},
-            color_discrete_sequence=[colors["Nucléaire"]],
-        )
-        fig.update_traces(marker_line_color="#0E1117", marker_line_width=1)
-        return fig
-
-    # Création du DataFrame 'EUROPE_PROD'
-
-    def create_prod_europe(df):
-        return df[df["Type"] == "Production"]
-
-    EUROPE_PROD = create_prod_europe(EUROPE_DATA)
-
-    # Création du DatFrame 'EUROPE_CONS'
-    def create_cons_europe(df):
-        return df[df["Type"] == "Consommation"]
-
-    EUROPE_CONS = create_cons_europe(EUROPE_DATA)
-
-    def create_pe1a_chart(df):
-        EUROPE_PROD_TYPE = (
-            EUROPE_PROD.groupby(["Pays", "Class"])["Énergie (TWh)"].sum().reset_index()
-        )
-        fig = px.bar(
-            EUROPE_PROD_TYPE,
-            x="Pays",
-            y="Énergie (TWh)",
-            color="Class",
-            labels={"Énergie (TWh)": "Production cumulée (TWh)", "Pays": "Pays"},
-            title="Production d'énergie renouvelable par pays, cumulée de 2013 à 2021",
-        )
-
-        for classification, color in colors_euro.items():
-            fig.update_traces(marker_color=color, selector=dict(name=classification))
-
-        return fig
-
-    def create_pe2a_chart(df):
-        euro_yearly = (
-            EUROPE_PROD.groupby(["Class", "Année"])["Énergie (TWh)"]
-            .sum()
-            .unstack()
-            .transpose()
-        )
-        fig = px.bar(
-            euro_yearly,
-            x=euro_yearly.index,
-            y=euro_yearly.columns,
-            title="Production européenne d'énergie renouvelable par type et par année",
-        )
-        fig.update_layout(
-            barmode="stack",
-            xaxis_title="Année",
-            yaxis_title="Production (TWh)",
-            legend_title="Classification",
-        )
-
-        for classification, color in colors_euro.items():
-            fig.update_traces(marker_color=color, selector=dict(name=classification))
-
-        return fig
-
-    # Variables pour df1 & df2 (2021 est déjà exclue)
-    distrib = aggregates["distrib"]
-
-    def create_df1_chart(distrib, region):
-        # Solde annuel en TWh : positif = importations nettes,
-        # négatif = exportations nettes vers les autres régions et pays.
-        # Points en rouge (importatrice) ou bleu (exportatrice), comme sur la
-        # carte affichée sous le graphique.
-        region_data = distrib[distrib["Région"] == region]
-        solde = region_data["Ech. physiques"]
-        fig = go.Figure(
-            go.Scatter(
-                x=region_data["Année"],
-                y=solde,
-                mode="lines+markers",
-                line=dict(color="gray"),
-                marker=dict(
-                    size=10,
-                    color=["#E4572E" if v > 0 else "#2E5EAA" for v in solde],
-                ),
-                hovertemplate="%{x} : %{y:.1f} TWh<extra></extra>",
-            )
-        )
-        fig.add_hline(y=0, line_color="gray", line_width=1)
-        fig.update_layout(
-            title=f"Solde annuel des échanges physiques : {region}",
-            xaxis_title="Année",
-            yaxis_title="Solde des échanges (TWh)<br>< 0 : exportatrice   > 0 : importatrice",
-            xaxis=dict(dtick=1),
-            height=500,
-        )
-        return fig
-
-    # TCO & TCH
-    tco_tch = load_tco_tch_aggregates()
-    tco_tch_grouped_solaire = tco_tch["TCH Solaire (%)"]
-    tco_tch_grouped_eolien = tco_tch["TCH Eolien (%)"]
-    tco_nuke = tco_tch["TCO Nucléaire (%)"]
-
-    def create_tcf1_chart(df):
-        fig = px.line(
-            tco_tch_grouped_solaire,
-            x="Mois",
-            y="TCH Solaire (%)",
-            color="Région",
-            title="TCH Solaire (%) par Mois et Région",
-        )
-
-        # Titres
-        fig.update_layout(
-            xaxis_title="Mois",
-            yaxis_title="TCH Solaire (%)",
-            legend_title="Région",
-        )
-
-        return fig
-
-    def create_tcf2_chart(df):
-        fig = px.line(
-            tco_tch_grouped_eolien,
-            x="Mois",
-            y="TCH Eolien (%)",
-            color="Région",
-            title="TCH Eolien (%) par Mois et Région",
-        )
-
-        # Titres
-        fig.update_layout(
-            xaxis_title="Mois",
-            yaxis_title="TCH Eolien (%)",
-            legend_title="Région",
-        )
-
-        return fig
-
-    def create_tcf3_chart(df):
-        fig = px.line(
-            tco_nuke,
-            x="Mois",
-            y="TCO Nucléaire (%)",
-            color="Région",
-            title="TCO Nucléaire (%) par Mois et Région",
-        )
-
-        # Titres
-        fig.update_layout(
-            xaxis_title="Mois",
-            yaxis_title="TCO Nucléaire %",
-            legend_title="Région",
-        )
-
-        return fig
-
-    df_daily = aggregates["df_daily"]
-
-    def create_cf4_chart(df):
-        fig = px.line(
-            df_daily,
-            x="Heure",
-            y="Consommation (MW)",
-            color="Année",
-            hover_data=["Année"],
-            labels={"Consommation (MW)": "Consommation moyenne (MW)"},
-        )
-        fig.update_layout(title="Consommation dans une journée type, par année")
-        return fig
-
-    def create_cf1_chart(cons_yearly):
-        fig = px.line(
-            cons_yearly,
-            x="Année",
-            y="Consommation",
-            color="Région",
-            markers=True,
-            title="Consommation d'électricité par région et par année",
-            labels={"Consommation": "Consommation (TWh)"},
-            # 12 régions : la palette par défaut n'a que 10 couleurs
-            color_discrete_sequence=px.colors.qualitative.Light24,
-            category_orders={
-                "Région": cons_yearly.groupby("Région")["Consommation"]
-                .sum()
-                .sort_values(ascending=False)
-                .index.tolist()
-            },
-        )
-        fig.update_layout(height=500)
-        return fig
-
-    def create_cf2_chart(cons_monthly):
-        fig = px.bar(
-            cons_monthly,
-            x="Mois",
-            y="Consommation",
-            title="Consommation d'électricité en France par mois (moyenne de 2013 à 2021)",
-            labels={"Consommation": "Consommation (TWh)"},
-            color="Consommation",
-            color_continuous_scale="OrRd",
-        )
-        fig.update_layout(coloraxis_showscale=False)
-        return fig
-
-    def create_cf3_chart(weekly):
-        fig = px.line(
-            weekly,
-            x="Jour",
-            y="Consommation (GW)",
-            color="Période",
-            markers=True,
-            title="Consommation moyenne en France selon le jour et le moment de la journée",
-            labels={
-                "Jour": "Jour de la semaine",
-                "Consommation (GW)": "Puissance moyenne appelée (GW)",
-            },
-        )
-        return fig
-
-    def create_pcf1_chart(consprod):
-        # Production et consommation totales par région (déjà agrégées)
-
-        # Création d'une visualisation Plotly scatter pour comparer les régions entre elles
-        fig = px.scatter(
-            consprod,
-            x="Production",
-            y="Consommation",
-            color="Région",
-            title="Production et consommation par région, cumulées de 2013 à 2021",
-            hover_data=["Région"],
-            size="Production",
-            size_max=30,
-        )
-
-        # Personnalisation du graphique
-        fig.update_layout(
-            xaxis_title="Production (TWh)",
-            yaxis_title="Consommation (TWh)",
-            legend_title="Régions",
-        )
-
-        return fig
-
-    def create_ce3_chart(df):
-        EUROPE_CONS_TYPE = (
-            df.groupby(["Pays", "Class"])["Énergie (TWh)"].sum().reset_index()
-        )
-
-        fig = px.bar(
-            EUROPE_CONS_TYPE,
-            x="Pays",
-            y="Énergie (TWh)",
-            color="Class",
-            labels={
-                "Énergie (TWh)": "Consommation cumulée (TWh)",
-                "Pays": "Pays",
-                "Class": "Classification",
-            },
-            title="Consommation d'énergies renouvelables par pays, cumulée de 2013 à 2021",
-            # Pays du plus gros au plus petit consommateur
-            category_orders={
-                "Pays": EUROPE_CONS_TYPE.groupby("Pays")["Énergie (TWh)"]
-                .sum()
-                .sort_values(ascending=False)
-                .index.tolist()
-            },
-        )
-
-        for classification, color in colors_euro.items():
-            fig.update_traces(marker_color=color, selector=dict(name=classification))
-
-        return fig
-
-    def create_ce4_chart(df):
-        # Graphique CE4
-        # Total consommation annuelle  d'énergie renouvelable en Europe par type d'énergie
-
-        # Grouper les données par "Classification" et "Année" et calculer la somme de la consommation
-        euro_yearly = (
-            df.groupby(["Class", "Année"])["Énergie (TWh)"].sum().unstack()
-        )
-
-        euro_yearly = euro_yearly.transpose()
-
-        # Création plotly
-        fig = px.bar(
-            euro_yearly,
-            x=euro_yearly.index,
-            y=euro_yearly.columns,
-            title="Consommation européenne d'énergies renouvelables par type et par année",
-        )
-        fig.update_layout(
-            barmode="stack",
-            xaxis_title="Année",
-            yaxis_title="Consommation (TWh)",
-            legend_title="Classification",
-        )
-
-        for classification, color in colors_euro.items():
-            fig.update_traces(marker_color=color, selector=dict(name=classification))
-
-        return fig
-
-    """ APRES CETTE LIMITE, ON AJOUTE TOUS LES TITRES, BODY ET APPELS DES FONCTIONS."""
 
     onglet_prod, onglet_taux, onglet_cons, onglet_echanges, onglet_europe = st.tabs(
         ["Production", "Taux de charge", "Consommation", "Échanges régionaux", "Europe"]
     )
 
-    ### PRODUCTION ###
     with onglet_prod:
-        st.subheader("Production de l'énergie")
-        # PF1
-        pf1_chart = create_pf1_chart(aggregates["prod_yearly"])
-        graphique(pf1_chart)
-        st.info(
-            "Dépendance au nucléaire : Le graphique révèle que la France dépend largement de l'énergie nucléaire pour sa production d'électricité. Cette source d'énergie représente une part substantielle de la production totale, ce qui indique son importance dans le mix énergétique du pays. La France a historiquement investi massivement dans l'énergie nucléaire, ce qui lui a permis de disposer d'une source d'énergie fiable et à faible émission de carbone. Nous pourrons comparer cette stratégie au reste de l'Europe plus tard dans ce rapport."
+        graphique(graphique_mix(prod_yearly, periode))
+        a_retenir(
+            [
+                "Le nucléaire assure entre 67 % et 77 % de la production selon les années.",
+                "La France a misé sur une électricité pilotable et peu carbonée : "
+                "l'onglet Europe la compare à ses voisins.",
+            ],
+            DETAILS["pf1"],
         )
 
-        # PF2
-        pf2_chart = create_pf2_chart(aggregates["prod_yearly"])
-        graphique(pf2_chart)
-        st.info(
-            "La production d'électricité renouvelable progresse, portée par l'éolien et le solaire : la production éolienne passe de 16 TWh en 2013 à 40 TWh en 2020 (36 TWh en 2021), et la production solaire de 4,5 à 14 TWh. À elles deux, ces filières passent de moins de 4 % à près de 10 % de la production d'électricité du pays. L'hydraulique reste la première source renouvelable, avec 53 à 75 TWh par an selon la pluviométrie : c'est elle qui fait varier le total d'une année sur l'autre. Cette croissance montre que la France diversifie son mix électrique, dans une logique de réduction des émissions de gaz à effet de serre."
+        graphique(graphique_renouvelables(prod_yearly, periode))
+        a_retenir(
+            [
+                "L'éolien passe de 16 TWh en 2013 à 40 TWh en 2020, le solaire de 4,5 à 14 TWh.",
+                "L'hydraulique reste la première source renouvelable : 53 à 75 TWh par an "
+                "selon la pluviométrie.",
+            ],
+            DETAILS["pf2"],
         )
 
-        # PF3
-        pf3_chart = create_pf3_chart(green)
-        graphique(pf3_chart)
-        st.info(
-            "Ce graphique illustre les disparités de production d'électricité renouvelable entre les régions, en cumul de 2013 à 2021. Auvergne-Rhône-Alpes se distingue nettement (environ 280 TWh), grâce à une production hydraulique bien supérieure à celle des autres régions. Elle est suivie, loin derrière, par l'Occitanie (environ 155 TWh) et le Grand Est (environ 140 TWh), puis par Provence-Alpes-Côte d'Azur (environ 110 TWh) : dans ces trois régions aussi, l'hydraulique domine, grâce aux Pyrénées, au Rhin et aux Alpes. Le Grand Est et les Hauts-de-France se démarquent pour l'éolien, dont ils assurent à eux deux près de la moitié de la production. Sans surprise, le solaire est surtout exploité dans le sud : la Nouvelle-Aquitaine, l'Occitanie et Provence-Alpes-Côte d'Azur en produisent près des deux tiers. Enfin, la bioénergie est présente dans toutes les régions."
+        graphique(graphique_renouvelables_regions(prod_region, periode, region))
+        a_retenir(
+            [
+                "Auvergne-Rhône-Alpes domine nettement (environ 280 TWh), grâce à l'hydraulique.",
+                "Le Grand Est et les Hauts-de-France assurent près de la moitié de l'éolien ; "
+                "le sud, près des deux tiers du solaire.",
+            ],
+            DETAILS["pf3"],
         )
 
-        # PF4
+        filiere = st.selectbox("Filière renouvelable", GREEN_NAMES)
+        graphique(graphique_filiere_regions(prod_region, filiere, periode))
 
-        st.subheader("Répartition régionale par filière renouvelable")
-        type_energies = green.columns[1:]
-        selected_energy = st.selectbox("Filière renouvelable", type_energies)
-
-        pf4_chart = create_pf4_chart(green, selected_energy)
-        graphique(pf4_chart)
-
-        # PF5
-        st.subheader("Éolien en mer et éolien terrestre")
-        st.info(
-            "Sur la période étudiée (2013-2021), toute la production éolienne française est terrestre : le premier parc éolien en mer, au large de Saint-Nazaire, n'a été mis en service qu'en 2022. Les colonnes « Eolien terrestre » et « Eolien offshore » du jeu Eco2Mix ne sont remplies qu'en 2021, et leurs valeurs ne correspondent pas à de l'éolien : la colonne « offshore » n'est non nulle que dans les sept régions qui ont des centrales nucléaires, y compris Auvergne-Rhône-Alpes, qui n'a pas de façade maritime. Ces colonnes sont décalées par rapport à leur intitulé, et nous ne les utilisons donc pas."
+        graphique(graphique_nucleaire_regions(prod_region, periode, region))
+        a_retenir(
+            [
+                "Auvergne-Rhône-Alpes, le Grand Est et le Centre-Val de Loire produisent "
+                "chacune 650 à 750 TWh sur la période.",
+                "Les régions sans centrale dépendent des échanges : voir l'onglet "
+                "Échanges régionaux.",
+            ],
+            DETAILS["pf6"],
         )
+        with st.expander("Pourquoi pas d'éolien en mer ?"):
+            st.markdown(DETAILS["pf5"])
 
-        # PF6
-        st.subheader("Production nucléaire par région")
-        pf6_chart = create_pf6_chart(aggregates["nucleaire"])
-        graphique(pf6_chart)
-
-        st.info(
-            "Sur ce graphique, nous observons les régions qui produisent de l'électricité dans des centrales nucléaires. Seules sept régions sont concernées, et Auvergne-Rhône-Alpes, le Grand Est et le Centre-Val de Loire en sont les principales productrices, avec 650 à 750 TWh chacune sur la période. Comme le nucléaire représente entre 67 % et 77 % de la production d'électricité française selon les années, toutes les régions en dépendent, y compris celles qui n'en produisent pas et qui l'importent. La partie « Distribution » montre que cinq de ces sept régions (Auvergne-Rhône-Alpes, Centre-Val de Loire, Grand Est, Normandie et Nouvelle-Aquitaine) sont exportatrices nettes chaque année de 2013 à 2020. L'Occitanie reste importatrice, et les Hauts-de-France ne deviennent exportateurs qu'à partir de 2018."
-        )
-
-    ### TAUX DE CHARGE ET DE COUVERTURE ###
     with onglet_taux:
-        st.subheader("Focus sur TCO & TCH")
-        st.info(
-            "Le taux de charge d'une filière se réfère à la quantité de production par rapport à la capacité de production totale en service de cette filière.",
-            icon=":material/info:",
+        tco_tch_periode = filtrer(tco_tch, debut, fin)
+        st.caption(
+            "Le **taux de charge** (TCH) d'une filière rapporte sa production à sa "
+            "capacité installée. Le **taux de couverture** (TCO) rapporte la production "
+            "d'une filière à la consommation de la région."
+        )
+        graphique(graphique_taux(
+            tco_tch_periode, "TCH Solaire (%)",
+            "Le solaire produit le plus en été, sans dépasser la moitié de sa capacité",
+            region,
+        ))
+        a_retenir(
+            [
+                "Le taux de charge solaire culmine en juillet, autour de 50 % au mieux.",
+                "Les régions les plus équipées n'ont pas les meilleurs taux : le Centre-Val "
+                "de Loire, 3 % de la production solaire, détient le record.",
+            ],
+            DETAILS["tcf1"],
+        )
+        graphique(graphique_taux(
+            tco_tch_periode, "TCH Eolien (%)",
+            "L'éolien produit le plus en hiver, avec un pic en février",
+            region,
+        ))
+        a_retenir(
+            [
+                "Le Grand Est et le Centre-Val de Loire dépassent 50 % en février.",
+                "Les Hauts-de-France, premiers producteurs (26 % de l'éolien), plafonnent "
+                "autour de 49 %.",
+            ],
+            DETAILS["tcf2"],
+        )
+        graphique(graphique_taux(
+            tco_tch_periode, "TCO Nucléaire (%)",
+            "Le Centre-Val de Loire produit bien plus de nucléaire qu'il ne consomme",
+            region,
+        ))
+        a_retenir(
+            [
+                "Région très productrice et peu consommatrice, le Centre-Val de Loire "
+                "dépasse largement 100 % de couverture.",
+                "L'écart se creuse quand la consommation baisse, au printemps et en été.",
+            ],
+            DETAILS["tcf3"],
         )
 
-        tcf1_chart = create_tcf1_chart(tco_tch)
-        graphique(tcf1_chart)
-        st.write(
-            "Le graphique présent affiche les moyennes des taux de charge pour l'énergie solaire, mettant en évidence des pics naturels pendant les mois estivaux, lorsque l'ensoleillement est plus intense. La moyenne maximale se situe aux alentours de 50%. Ce qui ressort de cette analyse, c'est que les régions générant la plus grande quantité d'énergie solaire ont généralement des taux de charge moyens plus bas. Ceci s'explique par la plus grande taille de leurs installations par rapport à d'autres régions. Par exemple, la région Centre-Val de Loire ne contribue qu'à 3 % de la production solaire totale, mais elle détient le record du taux de charge moyen, près de 50 % en juillet."
-        )
-
-        tcf2_chart = create_tcf2_chart(tco_tch)
-        graphique(tcf2_chart)
-        st.write(
-            "Le graphique ci-dessous illustre le taux de charge éolien, mettant en évidence des pics pendant la saison hivernale. On observe un taux de charge moyen record pour les régions Grand Est et Centre, dépassant les 50% en février. Ces deux régions contribuent respectivement à 22% et 8% de la production éolienne en France. En revanche, la région Hauts-de-France, qui représente près de 26 % de la production éolienne totale, affiche un taux de charge moyen maximal un peu plus bas, autour de 49 %, ce qui s'explique également par la taille de ses installations."
-        )
-
-        st.info(
-            "Le taux de couverture d’une filière de production au sein d’une région représente la part de cette filière dans la consommation de cette région.",
-            icon=":material/info:",
-        )
-        tcf3_chart = create_tcf3_chart(tco_tch)
-        graphique(tcf3_chart)
-        st.write(
-            "Nous choisissons ici d'observer les variations du taux de couverture du nucléaire, pour observer les différences des tendances entre les régions au cours de l'année.​ Ce que nous pouvons voir très clairement, c'est que la région Centre Val de Loire se démarque tout particulièrement, car c'est une région fortement productrice, mais peu consommatrice, et son taux de couverture est largement au-dessus de 100% lorsque la consommation est moins forte dans cette région.​"
-        )
-
-    ### CONSOMMATION ###
     with onglet_cons:
-        st.subheader("Consommation de l'énergie")
-        # CF1
-        graphique(create_cf1_chart(aggregates["cons_yearly"]))
-
-        # CF2
-        graphique(create_cf2_chart(aggregates["cons_monthly"]))
-
-        # CF3
-        graphique(create_cf3_chart(aggregates["weekly"]))
-
-        # CF4
-
-        cf4_chart = create_cf4_chart(df_daily)
-        graphique(cf4_chart)
-
-        # CF8 / 9 / 11
-
-        st.subheader("Comparaison de la production et de la consommation")
-        pcf1_chart = create_pcf1_chart(aggregates["consprod"])
-        graphique(pcf1_chart)
-        st.write(
-            "Ce nuage de points compare la production et la consommation d'électricité de chaque région, cumulées de 2013 à 2021. Auvergne-Rhône-Alpes est la première productrice (environ 1 050 TWh) et l'une des deux plus grosses consommatrices (environ 590 TWh). Le Grand Est, le Centre-Val de Loire et la Normandie produisent bien plus qu'ils ne consomment : le Centre-Val de Loire produit environ quatre fois sa consommation. À l'inverse, la Bourgogne-Franche-Comté, la Bretagne et les Pays de la Loire ne produisent que 15 à 25 % environ de ce qu'ils consomment, et l'Île-de-France, première consommatrice (environ 635 TWh), à peine 5 %. Ces régions dépendent des échanges avec les régions productrices."
+        graphique(graphique_conso_regions(cons_yearly, region))
+        graphique(graphique_conso_mois(filtrer(aggregates["cons_monthly"], debut, fin), periode))
+        graphique(graphique_conso_semaine(filtrer(aggregates["weekly"], debut, fin)))
+        graphique(graphique_journee(filtrer(aggregates["df_daily"], debut, fin)))
+        graphique(graphique_production_conso(
+            filtrer(aggregates["consprod"], debut, fin), periode, region
+        ))
+        a_retenir(
+            [
+                "Les régions au-dessus de la diagonale consomment plus qu'elles ne produisent.",
+                "Le Centre-Val de Loire produit environ quatre fois sa consommation ; "
+                "l'Île-de-France, première consommatrice, à peine 5 %.",
+            ],
+            DETAILS["pcf1"],
         )
 
-    ### ÉCHANGES ###
     with onglet_echanges:
-        st.subheader("Distribution de l'énergie")
-        regions = distrib["Région"].unique()
-        selected_region = st.selectbox("Région", regions)
-        graphique(create_df1_chart(distrib, selected_region))
-
-        st.image("images/distrib_map.png")
-        st.info(
-            "La carte montre, pour l'année 2013, en rouge les régions importatrices et en bleu les exportatrices. Ces tendances restent stables jusqu'en 2020, à deux nuances près : les exportations nettes de la Normandie diminuent de plus de moitié (49 TWh en 2013, 21 TWh en 2020), et les Hauts-de-France passent d'importateurs à exportateurs nets à partir de 2018. Les échanges de 2021 ne sont pas exploitables dans notre jeu de données."
+        distrib = filtrer(
+            aggregates["distrib"], debut, min(fin, DERNIERE_ANNEE_ECHANGES)
         )
+        if distrib.empty:
+            st.info(
+                "Les échanges de 2021 ne sont pas exploitables dans notre jeu de données : "
+                "choisissez une période qui commence avant 2021.",
+                icon=":material/info:",
+            )
+        else:
+            annees = sorted(distrib["Année"].unique())
+            annee = st.select_slider(
+                "Année de la carte", options=annees, value=annees[0], key="analyses_annee_carte"
+            )
+            graphique(carte_echanges(distrib, load_regions(), annee))
+            a_retenir(
+                [
+                    "Cinq des sept régions nucléaires sont exportatrices nettes chaque année "
+                    "de 2013 à 2020.",
+                    "La Normandie exporte deux fois moins en 2020 qu'en 2013 ; les "
+                    "Hauts-de-France deviennent exportateurs en 2018.",
+                ],
+                DETAILS["df1"],
+            )
+            choix = st.selectbox(
+                "Région", REGIONS, index=REGIONS.index(region) if region else 0
+            )
+            graphique(graphique_solde_region(distrib, choix))
 
-    ### EUROPE ###
     with onglet_europe:
-        st.subheader("Production d'énergies renouvelables en Europe")
-        pe1a_chart = create_pe1a_chart(EUROPE_PROD)
-        graphique(pe1a_chart)
-        st.info(
-            "Le graphique montre la production d'énergies renouvelables cumulée de 2013 à 2021, toutes formes d'énergie confondues (pas seulement l'électricité). L'Allemagne est en tête (environ 9 900 TWh), suivie de la France et de l'Italie presque à égalité (environ 5 700 et 5 600 TWh), puis de la Suède (environ 4 200 TWh). Les facteurs influençant ces résultats incluent les ressources naturelles, les politiques gouvernementales, les investissements dans les technologies écologiques, ainsi que la taille et la consommation énergétique des pays. En Allemagne, l'accent est mis sur l'éolien, le solaire photovoltaïque et la biomasse grâce à l'initiative Energiewende. La France, bien que dépendante du nucléaire, cherche à diversifier son mix énergétique en favorisant les énergies renouvelables, en particulier l'hydroélectricité. L'Italie se distingue par son potentiel en énergie solaire photovoltaïque, tandis que la Suède mise sur l'hydroélectricité et la bioénergie pour atteindre une production énergétique 100% renouvelable d'ici 2040. L'Allemagne et la France se démarquent également dans les biocarburants et la bioénergie, grâce à des politiques favorables, des ressources agricoles abondantes et des incitations financières pour la production d'énergie à partir de résidus organiques."
+        europe = filtrer(europe, debut, fin)
+        production = europe[europe["Type"] == "Production"]
+        consommation = europe[europe["Type"] == "Consommation"]
+        st.caption(
+            "Données Eurostat : toutes les formes d'énergie renouvelable, pas seulement "
+            "l'électricité."
         )
-
-        pe2a_chart = create_pe2a_chart(EUROPE_PROD)
-        graphique(pe2a_chart)
-        st.info(
-            "De 2013 à 2021, la production européenne d'énergie renouvelable progresse surtout, en volume, grâce aux biocarburants (+585 TWh), à la bioénergie (+208 TWh) et à l'éolien (+177 TWh). En proportion, les plus fortes hausses sont celles des pompes à chaleur (production multipliée par 3,2), du solaire photovoltaïque (multipliée par 2) et de l'éolien (multipliée par 1,85). L'hydraulique, elle, recule légèrement."
+        graphique(_barres_pays(
+            production, "Production",
+            "Production d'énergie renouvelable par pays " + periode + " : {premier} en tête",
+        ))
+        a_retenir(
+            [
+                "L'Allemagne est en tête (environ 9 900 TWh), devant la France et l'Italie "
+                "(environ 5 700 et 5 600 TWh).",
+                "La Suède mise sur l'hydroélectricité et la bioénergie.",
+            ],
+            DETAILS["pe1a"],
         )
-
-        st.subheader("Consommation d'énergies renouvelables en Europe")
-        graphique(create_ce4_chart(EUROPE_CONS))
-
-        graphique(create_ce3_chart(EUROPE_CONS))
-        st.write(
-            "La consommation d'énergies renouvelables en Europe connaît une croissance significative, stimulée par des politiques environnementales strictes, des objectifs de réduction des émissions et des incitations financières. Les biocarburants gagnent en popularité pour diversifier les transports, tandis que la bioénergie prospère grâce aux ressources forestières et agricoles abondantes. L'énergie hydraulique et éolienne est privilégiée dans des régions adaptées, tandis que le biogaz et les déchets municipaux renouvelables sont encouragés pour une gestion durable des déchets. Les pompes à chaleur, le solaire, et la géothermie sont préférés en fonction des ressources locales, tandis que l'énergie océanique est encore en développement."
+        graphique(_barres_annees(
+            production, "Production",
+            "La production renouvelable européenne passe de {debut} TWh en {annee_debut} "
+            "à {fin} TWh en {annee_fin}",
+        ))
+        a_retenir(
+            [
+                "La hausse vient surtout des biocarburants (+585 TWh), de la bioénergie "
+                "(+208 TWh) et de l'éolien (+177 TWh).",
+                "Les pompes à chaleur triplent, le solaire photovoltaïque double ; "
+                "l'hydraulique recule légèrement.",
+            ],
+            DETAILS["pe2a"],
+        )
+        graphique(_barres_annees(
+            consommation, "Consommation",
+            "La consommation renouvelable européenne passe de {debut} TWh en {annee_debut} "
+            "à {fin} TWh en {annee_fin}",
+        ))
+        graphique(_barres_pays(
+            consommation, "Consommation",
+            "Consommation d'énergie renouvelable par pays " + periode + " : {premier} en tête",
+        ))
+        a_retenir(
+            [
+                "La consommation d'énergies renouvelables progresse dans toute l'Europe.",
+                "Biocarburants et bioénergie en forment la plus grosse part.",
+            ],
+            DETAILS["ce3"],
         )

@@ -19,15 +19,15 @@
 
 ## What's inside
 
-The app has seven pages, each with its own URL (for example `/analyses`), reached from the sidebar. Each page opens with its key figures, and the Analyses page is split into tabs (Production, Load factors, Consumption, Regional exchanges, Europe).
+The app has seven pages, each with its own URL (for example `/analyses`), reached from the sidebar. Each page opens with its key figures, and the Analyses page is split into tabs (Production, Load factors, Consumption, Regional exchanges, Europe). On the Analyses page, sidebar filters narrow the period and highlight one region in every regional chart; each chart title states its takeaway, with key points below and the full comment one click away.
 
 | Page | Content |
 | --- | --- |
 | Introduction | Context and questions of the study |
-| Exploration des données | Overview of the eco2mix and temperature datasets, missing values |
+| Exploration des données | Overview of the eco2mix and temperature datasets, fill rate of every column |
 | Préparation des données | How the raw data was cleaned and reshaped |
-| Analyses et visualisations | Key figures, then production mix, renewables by region, load and coverage factors, regional exchanges, daily consumption profile, European comparison (Eurostat). Energy is shown in TWh. |
-| Modélisation et prédictions | Consumption forecast for a region, date, time and temperatures, with the model's test metrics and a temperature curve |
+| Analyses et visualisations | Key figures, then production mix, renewables by region, load and coverage factors, regional exchanges with a map by year, daily consumption profile, European comparison (Eurostat). Energy is shown in TWh. |
+| Modélisation et prédictions | Consumption forecast for a region, date, time and temperatures, with the model's test metrics, a temperature curve and a week of predictions against actual consumption |
 | Conclusion | Takeaways and challenges for 2050 |
 | Ressources | Data sources and tools |
 
@@ -74,7 +74,7 @@ ruff check .
 python -m pytest
 ```
 
-The 52 tests (about 35 seconds) check that the seven pages run without exceptions, that each page has its own URL, that every option of the Analyses page renders, that the prediction works and reacts to temperature, and that the pinned dependencies install without conflicts.
+The 56 tests (about 45 seconds) check that the seven pages run without exceptions, that each page has its own URL, that the Analyses filters work, that every option of the Analyses page renders, that the prediction works and reacts to temperature, and that the pinned dependencies install without conflicts.
 
 GitHub Actions runs `pip check`, `ruff check` and the tests on every push and pull request (`.github/workflows/tests.yml`). The `main` branch only accepts pull requests whose tests pass. Dependabot proposes dependency updates once a month (`.github/dependabot.yml`).
 
@@ -97,7 +97,7 @@ The app stays under about 700 MB of RAM: the large Parquet files are aggregated 
 ```
 hexa-watts/
 ├── content/                 # One module per page, the model features (caracteristiques.py) and shared UI helpers (interface.py)
-├── datasets/                # eco2mix, temperatures, load factors and Eurostat data
+├── datasets/                # eco2mix, temperatures, load factors, Eurostat data and region outlines (GeoJSON)
 ├── docs/                    # Screenshot for this README
 ├── images/                  # Images shown in the app
 ├── models/                  # Trained model and its test metrics

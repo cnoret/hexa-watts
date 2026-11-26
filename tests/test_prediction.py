@@ -13,7 +13,13 @@ from content.caracteristiques import (
     construire_caracteristiques,
     jours_feries,
 )
-from content.modelisation import CHEMIN_MODELE
+from content.modelisation import (
+    CHEMIN_MODELE,
+    format_pct,
+    load_temperatures,
+    normales,
+    plage_temperatures,
+)
 from tests.conftest import RACINE, page_app, sans_exception
 
 HIVER = datetime.date(2020, 1, 15)  # un mercredi
@@ -97,7 +103,7 @@ def prediction_dans_la_page(tmin, tmoy, tmax):
     at = page_app("modelisation").run()
     sans_exception(at)
     at.selectbox[0].set_value("Île-de-France")
-    at.date_input[0].set_value(HIVER)
+    at.date_input[0].set_value(HIVER).run()  # recalcule les températures par défaut
     at.number_input[0].set_value(tmin)
     at.number_input[1].set_value(tmoy)
     at.number_input[2].set_value(tmax)
@@ -120,3 +126,69 @@ def test_page_modelisation_signale_temperatures_incoherentes():
     at.number_input[1].set_value(30.0).run()  # moyenne > maximale
     sans_exception(at)
     assert any("entre la minimale et la maximale" in w.value for w in at.warning)
+
+
+# --- Températures par défaut et plage de la courbe ----------------------------
+
+ETE = datetime.date(2020, 7, 15)
+
+
+@pytest.fixture(scope="module")
+def temperatures():
+    return load_temperatures.__wrapped__(RACINE / "datasets/temp.csv")
+
+
+def test_normales_suivent_la_saison_et_la_region(temperatures):
+    tmin, tmoy, tmax = normales(temperatures, "Île-de-France", HIVER)
+    assert tmin <= tmoy <= tmax
+    assert -2 < tmoy < 10, tmoy
+    assert normales(temperatures, "Île-de-France", ETE)[1] > tmoy + 10
+    # Plus doux en Provence qu'en Grand Est au cœur de l'hiver
+    assert (
+        normales(temperatures, "Provence-Alpes-Côte d'Azur", HIVER)[1]
+        > normales(temperatures, "Grand Est", HIVER)[1] + 3
+    )
+
+
+def test_normales_continues_au_nouvel_an(temperatures):
+    """La fenêtre autour du 1er janvier reprend aussi les relevés de fin décembre."""
+    premier_janvier = normales(temperatures, "Bretagne", datetime.date(2020, 1, 1))
+    trente_et_un = normales(temperatures, "Bretagne", datetime.date(2019, 12, 31))
+    assert premier_janvier == pytest.approx(trente_et_un, abs=0.5)
+
+
+def test_plage_de_la_courbe_selon_la_saison(temperatures):
+    bas_hiver, haut_hiver = plage_temperatures(temperatures, "Île-de-France", HIVER)
+    bas_ete, haut_ete = plage_temperatures(temperatures, "Île-de-France", ETE)
+    assert bas_hiver < 0 < haut_hiver < 20
+    assert 10 < bas_ete < haut_ete < 35
+    assert haut_hiver < haut_ete
+
+
+def test_format_pct():
+    assert format_pct(0.055135) == "5,5\u202f%"
+
+
+def test_page_modelisation_propose_les_normales():
+    at = page_app("modelisation").run()
+    sans_exception(at)
+    at.selectbox[0].set_value("Île-de-France")
+    at.date_input[0].set_value(HIVER).run()
+    hiver = [n.value for n in at.number_input]
+    assert hiver[0] <= hiver[1] <= hiver[2]
+    at.date_input[0].set_value(ETE).run()
+    sans_exception(at)
+    assert at.number_input[1].value > hiver[1] + 10
+    # Une température saisie à la main est conservée tant que la date ne change pas
+    at.number_input[1].set_value(hiver[1]).run()
+    at.time_input[0].set_value(datetime.time(8, 0)).run()
+    assert at.number_input[1].value == hiver[1]
+
+
+def test_page_modelisation_libelle_la_mape():
+    at = page_app("modelisation").run()
+    at.button[0].click().run()
+    sans_exception(at)
+    message = at.success[0].value
+    assert "MAPE" in message and "± 6" not in message
+    assert "5,5\u202f%" in message

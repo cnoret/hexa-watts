@@ -6,7 +6,6 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
-import matplotlib.pyplot as plt
 import pyarrow.compute as pc
 import pyarrow.parquet as pq
 
@@ -419,21 +418,34 @@ def visualisation():
     distrib = aggregates["distrib"]
 
     def create_df1_chart(distrib, region):
-        try:
-            # Solde annuel en TWh : positif = importations nettes,
-            # négatif = exportations nettes vers les autres régions et pays
-            fig, ax = plt.subplots(figsize=(10, 6))
-            region_data = distrib[distrib["Région"] == region]
-            ax.plot(region_data["Année"], region_data["Ech. physiques"], marker="o")
-            ax.axhline(0, color="gray", linewidth=1)
-            ax.set_title(f"Solde annuel des échanges physiques : {region}")
-            ax.set_xlabel("Année")
-            ax.set_ylabel("Solde des échanges (TWh)\n< 0 : exportatrice   > 0 : importatrice")
-            ax.grid(True)
-            st.pyplot(fig)
-            plt.close(fig)
-        except Exception as e:
-            st.error(f"Erreur : {e}")
+        # Solde annuel en TWh : positif = importations nettes,
+        # négatif = exportations nettes vers les autres régions et pays.
+        # Points en rouge (importatrice) ou bleu (exportatrice), comme sur la
+        # carte affichée sous le graphique.
+        region_data = distrib[distrib["Région"] == region]
+        solde = region_data["Ech. physiques"]
+        fig = go.Figure(
+            go.Scatter(
+                x=region_data["Année"],
+                y=solde,
+                mode="lines+markers",
+                line=dict(color="gray"),
+                marker=dict(
+                    size=10,
+                    color=["#D62728" if v > 0 else "#1F77B4" for v in solde],
+                ),
+                hovertemplate="%{x} : %{y:.1f} TWh<extra></extra>",
+            )
+        )
+        fig.add_hline(y=0, line_color="gray", line_width=1)
+        fig.update_layout(
+            title=f"Solde annuel des échanges physiques : {region}",
+            xaxis_title="Année",
+            yaxis_title="Solde des échanges (TWh)<br>< 0 : exportatrice   > 0 : importatrice",
+            xaxis=dict(dtick=1),
+            height=500,
+        )
+        return fig
 
     # TCO & TCH
     tco_tch = load_tco_tch_aggregates()
@@ -744,7 +756,7 @@ def visualisation():
     st.warning("Sélectionnez une région pour afficher le graphique", icon="🤖")
     regions = distrib["Région"].unique()
     selected_region = st.selectbox("Région", regions)
-    create_df1_chart(distrib, selected_region)
+    st.plotly_chart(create_df1_chart(distrib, selected_region))
 
     st.image("images/distrib_map.png")
     st.info(

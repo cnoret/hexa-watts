@@ -120,7 +120,7 @@ hexa-watts/
 
 ## Built with
 
-Python, Streamlit, pandas, PyArrow, Plotly, Matplotlib, scikit-learn and joblib.
+Python, Streamlit, pandas, PyArrow, Plotly, scikit-learn and joblib.
 
 ## Team
 

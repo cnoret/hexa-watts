@@ -33,7 +33,6 @@ def ressources():
         """
         Les bibliothèques suivantes ont été utilisées dans ce projet :
         - **[Pandas](https://pandas.pydata.org/)** : Manipulation et analyse des données.
-        - **[Matplotlib](https://matplotlib.org/)** : Visualisations statiques, animées et interactives.
         - **[Plotly](https://plotly.com/python/)** : Visualisations interactives et dynamiques.
         - **[Scikit-Learn](https://scikit-learn.org/stable/)** : Préparation des données et modélisation prédictive.
         - **[Streamlit](https://streamlit.io/)** : Transformation des scripts Python en applications web.

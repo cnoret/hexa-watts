@@ -191,3 +191,49 @@ def graphique(fig, **options):
             title=dict(yref="container", y=1, yanchor="top", pad=dict(t=16)),
         )
     return st.plotly_chart(fig, **options)
+
+
+GRIS_SECONDAIRE = "#C9D1DD"
+
+
+def a_retenir(points, detail=None):
+    """
+    Encadré « À retenir » : deux ou trois points clés, et le commentaire
+    complet dans un bloc à déplier.
+    """
+    with st.container(border=True):
+        st.markdown(
+            "**À retenir**\n\n" + "\n".join(f"- {point}" for point in points)
+        )
+        if detail:
+            with st.expander("En détail"):
+                st.markdown(detail)
+
+
+def mettre_en_avant(fig, region):
+    """
+    Met une région en avant dans une figure Plotly : les autres passent en gris.
+
+    Courbes et nuages de points : chaque trace porte le nom d'une région.
+    Barres : les catégories de l'axe des régions (y pour des barres
+    horizontales, x sinon) sont estompées, sauf la région choisie.
+    """
+    if not region:
+        return fig
+    for trace in fig.data:
+        if trace.type in ("scatter", "scattergl"):
+            if trace.name == region:
+                accent = _option("primaryColor", "#2E5EAA")
+                trace.update(
+                    line_color=accent, marker_color=accent, line_width=4, opacity=1
+                )
+            else:
+                trace.update(
+                    line_color=GRIS_SECONDAIRE, marker_color=GRIS_SECONDAIRE,
+                    line_width=1.5, opacity=0.7,
+                )
+        elif trace.type == "bar":
+            categories = trace.y if trace.orientation == "h" else trace.x
+            if categories is not None and region in list(categories):
+                trace.marker.opacity = [1 if c == region else 0.25 for c in categories]
+    return fig

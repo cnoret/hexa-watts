@@ -4,12 +4,19 @@ Creation of the "Ressources" page for the Hexa Watts application
 
 import streamlit as st
 
+from content.interface import en_tete
+
 
 def ressources():
     """Content of the resources page"""
 
     # Title: Sources des données
-    st.title("📚 Sources des données")
+    en_tete(
+        "Ressources",
+        surtitre="Sources, outils et remerciements",
+        sous_titre="D'où viennent les données et avec quoi l'application est construite.",
+    )
+    st.header("Sources des données")
     st.markdown(
         """
         Les données utilisées dans ce projet proviennent de diverses sources publiques, toutes accessibles gratuitement :
@@ -27,8 +34,8 @@ def ressources():
     st.divider()
 
     # Title: Compétences et Technologies
-    st.title("🔧 Compétences et technologies")
-    st.markdown("### Langage Python 🐍", unsafe_allow_html=True)
+    st.header("Compétences et technologies")
+    st.subheader("Langage Python")
     st.markdown(
         """
         Les bibliothèques suivantes ont été utilisées dans ce projet :
@@ -42,7 +49,7 @@ def ressources():
     st.divider()
 
     # Development and Deployment Tools
-    st.subheader("💻 Développement et déploiement")
+    st.subheader("Développement et déploiement")
     st.markdown(
         """
         Les outils suivants ont été essentiels au développement et au déploiement du projet :
@@ -58,7 +65,7 @@ def ressources():
     st.divider()
 
     # Thank You Section
-    st.title("🙏 Remerciements")
+    st.header("Remerciements")
     st.markdown(
         """
         Merci à toutes les organisations et plateformes qui fournissent des données ouvertes et des outils

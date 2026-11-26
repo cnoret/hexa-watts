@@ -3,6 +3,8 @@ Creation of the "Exploration des données" page for the Hexa Watts application
 """
 
 import streamlit as st
+
+from content.interface import en_tete
 import pyarrow as pa
 import pyarrow.compute as pc
 import pyarrow.parquet as pq
@@ -67,14 +69,14 @@ def load_temperature_dataset(filepath, separator=";"):
 
 def exploration():
     """Page for data exploration"""
-    st.title("Exploration des données")
-
-    # Display image
-    image_url = "images/diggy.png"
-    st.image(image_url, width=200)
+    en_tete(
+        "Exploration des données",
+        surtitre="Étape 1 · Les données brutes",
+        sous_titre="Ce que contiennent les jeux Eco2Mix et Météo France avant tout traitement.",
+    )
 
     # Load datasets with caching
-    with st.spinner("Chargement des données...⏳"):
+    with st.spinner("Chargement des données..."):
         try:
             # Load main dataset summary
             summary = load_main_dataset_summary("datasets/df.parquet")
